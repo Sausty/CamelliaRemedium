@@ -4,9 +4,7 @@
 #define CAMELLIA_RENDERER_D3D12_H
 
 #include "camellia_platform.h"
-
-#include <d3d12.h>
-#include <dxgi1_6.h>
+#include "camellia_d3d12.h"
 
 #define FRAMES_IN_FLIGHT 3
 
@@ -14,6 +12,13 @@ typedef struct d3d12_fence {
     ID3D12Fence* Fence;
     u64 FenceValue;
 } d3d12_fence;
+
+typedef struct d3d12_descriptor_heap {
+    ID3D12DescriptorHeap* Heap;
+    u32 IncrementSize;
+    u32 DescriptorCount;
+    D3D12_DESCRIPTOR_HEAP_TYPE Type;
+} d3d12_descriptor_heap;
 
 typedef struct d3d12_state {
     HWND RenderWindow;
@@ -35,5 +40,6 @@ typedef struct d3d12_state {
 
 void RendererInit(HWND Window);
 void RendererExit();
+void RendererRender();
 
 #endif //CAMELLIA_RENDERER_D3D12_H

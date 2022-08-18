@@ -311,6 +311,8 @@ int CALLBACK WinMain(HINSTANCE hInstance,
             GameCode.Update();
         }
         
+        RendererRender();
+        
         MSG Message;
         while (PeekMessageA(&Message, WindowHandle, 0, 0, PM_REMOVE))
         {

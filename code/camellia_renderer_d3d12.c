@@ -28,7 +28,7 @@ global d3d12_state D3D12;
 internal
 void FenceInit(d3d12_fence* Fence)
 {
-    HRESULT Result = D3D12.Device->lpVtbl->CreateFence(D3D12.Device, Fence->FenceValue, D3D12_FENCE_FLAG_NONE, &IID_ID3D12Fence, (void**)&Fence->Fence);
+    HRESULT Result = ID3D12Device_CreateFence(D3D12.Device, Fence->FenceValue, D3D12_FENCE_FLAG_NONE, &IID_ID3D12Fence, (void**)&Fence->Fence);
     Assert(SUCCEEDED(Result));
 }
 
@@ -43,7 +43,7 @@ u64 FenceSignal(d3d12_fence* Fence)
 {
     ++Fence->FenceValue;
     Fence->Fence->lpVtbl->Signal(Fence->Fence, Fence->FenceValue);
-    return Fence->FenceValue;
+    return(Fence->FenceValue);
 }
 
 internal
@@ -59,6 +59,36 @@ void FenceSync(d3d12_fence* Fence, u64 Value)
     {
         Fence->Fence->lpVtbl->SetEventOnCompletion(Fence->Fence, Value, NULL);
     }
+}
+
+internal
+void DescriptorHeapInit(d3d12_descriptor_heap* Heap, D3D12_DESCRIPTOR_HEAP_TYPE Type, u32 DescriptorCount)
+{
+    Heap->Type = Type;
+    Heap->DescriptorCount = DescriptorCount;
+    
+    D3D12_DESCRIPTOR_HEAP_DESC HeapDesc = {0};
+    HeapDesc.NumDescriptors = DescriptorCount;
+    HeapDesc.Type = Type;
+    HeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    ID3D12Device_CreateDescriptorHeap(D3D12.Device, &HeapDesc, &IID_ID3D12DescriptorHeap, (void**)&Heap->Heap);
+    
+    Heap->IncrementSize = ID3D12Device_GetDescriptorHandleIncrementSize(D3D12.Device, Type);
+}
+
+internal 
+void DescriptorHeapFree(d3d12_descriptor_heap* Heap)
+{
+    SafeRelease(Heap->Heap);
+}
+
+internal
+D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeapCPU(d3d12_descriptor_heap* Heap, u32 Offset)
+{
+    D3D12_CPU_DESCRIPTOR_HANDLE CPU = {0};
+    ID3D12DescriptorHeap_GetCPUDescriptorHeapHandleForHeapStart(Heap->Heap, &CPU);
+    CPU.ptr += Offset * Heap->IncrementSize;
+    return(CPU);
 }
 
 internal
@@ -113,13 +143,13 @@ void RendererInit(HWND Window)
     Result = D3D12CreateDevice((IUnknown*)D3D12.Adapter, D3D_FEATURE_LEVEL_12_0, &IID_ID3D12Device, (void**)&D3D12.Device);
     Assert(SUCCEEDED(Result));
     
-    Result = D3D12.Device->lpVtbl->QueryInterface(D3D12.Device, &IID_ID3D12DebugDevice, (void**)&D3D12.DebugDevice);
+    Result = ID3D12Device_QueryInterface(D3D12.Device, &IID_ID3D12DebugDevice, (void**)&D3D12.DebugDevice);
     Assert(SUCCEEDED(Result));
     
     D3D12.Adapter->lpVtbl->GetParent(D3D12.Adapter, &IID_IDXGIFactory, (void**)&D3D12.Factory);
     
     ID3D12InfoQueue* InfoQueue = 0;
-    D3D12.Device->lpVtbl->QueryInterface(D3D12.Device, &IID_ID3D12InfoQueue, (void**)&InfoQueue);
+    ID3D12Device_QueryInterface(D3D12.Device, &IID_ID3D12InfoQueue, (void**)&InfoQueue);
     
     InfoQueue->lpVtbl->SetBreakOnSeverity(InfoQueue, D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
     InfoQueue->lpVtbl->SetBreakOnSeverity(InfoQueue, D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
@@ -147,7 +177,7 @@ void RendererInit(HWND Window)
     InfoQueue->lpVtbl->Release(InfoQueue);
     
     D3D12_COMMAND_QUEUE_DESC QueueDesc = {0};
-    Result = D3D12.Device->lpVtbl->CreateCommandQueue(D3D12.Device, &QueueDesc, &IID_ID3D12CommandQueue, (void**)&D3D12.Queue);
+    Result = ID3D12Device_CreateCommandQueue(D3D12.Device, &QueueDesc, &IID_ID3D12CommandQueue, (void**)&D3D12.Queue);
     Assert(SUCCEEDED(Result));
     
     FenceInit(&D3D12.DeviceFence);
@@ -166,7 +196,7 @@ void RendererInit(HWND Window)
     Temp->lpVtbl->QueryInterface(Temp, &IID_IDXGISwapChain3, (void**)&D3D12.Swapchain);
     Temp->lpVtbl->Release(Temp);
     
-    for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++) 
+    for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
     {
         D3D12.Swapchain->lpVtbl->GetBuffer(D3D12.Swapchain, BufferIndex, &IID_ID3D12Resource, (void**)&D3D12.SwapchainBuffers[BufferIndex]);
     }
@@ -191,4 +221,41 @@ void RendererExit()
     D3D12.DebugDevice->lpVtbl->ReportLiveDeviceObjects(D3D12.DebugDevice, D3D12_RLDO_IGNORE_INTERNAL | D3D12_RLDO_DETAIL);
     SafeRelease(D3D12.DebugDevice);
     SafeRelease(D3D12.Debug);
+}
+
+void RendererRender()
+{
+    u32 Width = 0;
+    u32 Height = 0;
+    RendererGetWindowDimension(D3D12.RenderWindow, &Width, &Height);
+    
+    if (Width == 0 || Height == 0)
+    {
+        return;
+    }
+    
+    DXGI_SWAP_CHAIN_DESC1 SwapchainDesc;
+    D3D12.Swapchain->lpVtbl->GetDesc1(D3D12.Swapchain, &SwapchainDesc);
+    
+    if (SwapchainDesc.Width != Width || SwapchainDesc.Height != Height)
+    {
+        DeviceFlush(&D3D12.DeviceFence);
+        
+        for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
+        {
+            D3D12.SwapchainBuffers[BufferIndex]->lpVtbl->Release(D3D12.SwapchainBuffers[BufferIndex]);
+        }
+        D3D12.Swapchain->lpVtbl->ResizeBuffers(D3D12.Swapchain, 0, Width, Height, DXGI_FORMAT_UNKNOWN, 0);
+        for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
+        {
+            D3D12.Swapchain->lpVtbl->GetBuffer(D3D12.Swapchain, BufferIndex, &IID_ID3D12Resource, (void**)&D3D12.SwapchainBuffers[BufferIndex]);
+        }
+    }
+    
+    u32 SwapchainIndex = D3D12.Swapchain->lpVtbl->GetCurrentBackBufferIndex(D3D12.Swapchain);
+    FenceSync(&D3D12.DeviceFence, D3D12.SwapchainFenceValues[SwapchainIndex]);
+    
+    // Render
+    
+    D3D12.SwapchainFenceValues[SwapchainIndex] = FenceSignal(&D3D12.DeviceFence);
 }
