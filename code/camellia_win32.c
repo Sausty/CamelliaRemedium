@@ -1,6 +1,7 @@
 #include "camellia_win32.h"
 #include "camellia_math.h"
 #include "camellia_renderer_d3d12.h"
+#include "camellia_dsound.h"
 
 #include <string.h>
 #include <xinput.h>
@@ -277,6 +278,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
         // TODO(milo): Error loading
     }
     
+    DirectSoundInit(WindowHandle);
     RendererInit(WindowHandle);
     
     Win32GetExePath();
@@ -323,6 +325,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     Win32UnloadGameCode(&GameCode);
     
     RendererExit();
+    DirectSoundExit();
     
     return(0);
 }
