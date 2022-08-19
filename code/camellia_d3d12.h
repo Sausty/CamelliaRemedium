@@ -679,10 +679,17 @@
 #define ID3D12Device9_QueryInterface(d, riid, ppvObject) d->lpVtbl->QueryInterface(d, riid, ppvObject)
 #define ID3D12Device9_Release(d) d->lpVtbl->Release(d)
 
+//~ NOTE(milo.h): ID3D12Resource
+#define ID3D12Resource_Release(Resource) Resource->lpVtbl->Release(Resource)
+
+//~ NOTE(milo.h): ID3D12Fence
+#define ID3D12Fence_Signal(Fence, FenceValue) Fence->lpVtbl->Signal(Fence, FenceValue)
+#define ID3D12Fence_GetCompletedValue(Fence) Fence->lpVtbl->GetCompletedValue(Fence)
+#define ID3D12Fence_SetEventOnCompletion(Fence, Value, Event) Fence->lpVtbl->SetEventOnCompletion(Fence, Value, Event)
+
 /* D3D12 */
 // TODO(milo.h): ID3D12DeviceRemovedExtendedData(IUnknown)
 // TODO(milo.h): ID3D12DeviceRemovedExtendedDataSettings(IUnknown)
-// TODO(milo.h): ID3D12Fence(ID3D12Pageable)
 // TODO(milo.h): ID3D12Fence1(ID3D12Fence)
 // TODO(milo.h): ID3D12GraphicsCommandList(ID3D12CommandList)
 // TODO(milo.h): ID3D12GraphicsCommandList1(ID3D12GraphicsCommandList)
@@ -700,7 +707,6 @@
 // TODO(milo.h): ID3D12ProtectedResourceSession(ID3D12ProtectedSession)
 // TODO(milo.h): ID3D12ProtectedResourceSession1(ID3D12ProtectedResourceSession)
 // TODO(milo.h): ID3D12ProtectedSession(ID3D12DeviceChild)
-// TODO(milo.h): ID3D12Resource(ID3D12Pageable)
 // TODO(milo.h): ID3D12RootSignatureDeserializer(IUnknown)
 // TODO(milo.h): ID3D12SDKConfiguration(IUnknown)
 // TODO(milo.h): ID3D12ShaderCacheSession(ID3D12DeviceChild)
@@ -710,9 +716,20 @@
 // TODO(milo.h): ID3D12VersionedRootSignatureDeserializer(IUnknown)
 /* D3D12 */
 
+//~ NOTE(milo.h): ID3D12Debug1
+#define ID3D12Debug1_EnableDebugLayer(Debug) Debug->lpVtbl->EnableDebugLayer(Debug)
+#define ID3D12Debug1_Release(Debug) Debug->lpVtbl->Release(Debug)
+
+//~ NOTE(milo.h): ID3D12InfoQueue
+#define ID3D12InfoQueue_SetBreakOnSeverity(InfoQueue, MessageSeverity, Enable) InfoQueue->lpVtbl->SetBreakOnSeverity(InfoQueue, MessageSeverity, Enable)
+#define ID3D12InfoQueue_PushStorageFilter(InfoQueue, Filter) InfoQueue->lpVtbl->PushStorageFilter(InfoQueue, Filter)
+#define ID3D12InfoQueue_Release(InfoQueue) InfoQueue->lpVtbl->Release(InfoQueue)
+
+//~ NOTE(milo.h): ID3D12DebugDevice
+#define ID3D12DebugDevice_ReportLiveDeviceObjects(DebugDevice, Flags) DebugDevice->lpVtbl->ReportLiveDeviceObjects(DebugDevice, Flags)
+
 /* D3D12 DEBUG */
 // TODO(milo.h): ID3D12Debug(IUnknown)
-// TODO(milo.h): ID3D12Debug1(IUnknown)
 // TODO(milo.h): ID3D12Debug2(ID3D12Debug1)
 // TODO(milo.h): ID3D12Debug3(ID3D12Debug2)
 // TODO(milo.h): ID3D12Debug4(ID3D12Debug3)
@@ -722,7 +739,6 @@
 // TODO(milo.h): ID3D12DebugCommandQueue(IUnknown)
 // TODO(milo.h): ID3D12DebugDevice(IUnknown)
 // TODO(milo.h): ID3D12DebugDevice1(IUnknown)
-// TODO(milo.h): ID3D12InfoQueue(IUnknown)
 // TODO(milo.h): ID3D12SharingContract(IUnknown)
 /* D3D12 DEBUG */
 
@@ -748,6 +764,23 @@
 // TODO(milo.h): ID3D11On12Device1(ID3D11On12Device)
 // TODO(milo.h): ID3D11On12Device2(ID3D11On12Device1)
 /* D3D12 on 12 */
+
+//~ NOTE(milo.h): IDXGIFactory3
+#define IDXGIFactory3_EnumAdapters(Factory, Index, Adapter) Factory->lpVtbl->EnumAdapters(Factory, Index, Adapter)
+#define IDXGIFactory3_CreateSwapChainForHwnd(Factory, pUnknown, Hwnd, pDesc, idk, idk1, ppvSwapChain) Factory->lpVtbl->CreateSwapChainForHwnd(Factory, pUnknown, Hwnd, pDesc, idk, idk1, ppvSwapChain)
+
+//~ NOTE(milo.h): IDXGIAdapter
+#define IDXGIAdapter_GetParent(Adapter, riid, ppvParent) Adapter->lpVtbl->GetParent(Adapter, riid, ppvParent)
+
+//~ NOTE(milo.h) IDXGISwapChain1
+#define IDXGISwapChain1_QueryInterface(SwapChain, riid, ppvInterface) SwapChain->lpVtbl->QueryInterface(SwapChain, riid, ppvInterface)
+#define IDXGISwapChain1_Release(SwapChain) SwapChain->lpVtbl->Release(SwapChain)
+
+//~ NOTE(milo.h): IDXGISwapChain3
+#define IDXGISwapChain3_GetBuffer(SwapChain, BufferIndex, riid, ppvBuffer) SwapChain->lpVtbl->GetBuffer(SwapChain, BufferIndex, riid, ppvBuffer)
+#define IDXGISwapChain3_GetDesc1(SwapChain, Desc) SwapChain->GetDesc1(SwapChain, Desc)
+#define IDXGISwapChain3_ResizeBuffers(SwapChain, BufferCount, Width, Height, Format, Flags) SwapChain->ResizeBuffers(SwapChain, BufferCount, Width, Height, Format, Flags)
+#define IDXGISwapChain3_GetCurrentBackBufferIndex(SwapChain) SwapChain->lpVtbl->GetCurrentBackBufferIndex(D3D12.SwapChain)
 
 /* DXGI */
 // TODO(milo.h): IDXGIAdapter(IDXGIObject)

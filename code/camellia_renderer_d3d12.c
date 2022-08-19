@@ -35,29 +35,29 @@ void FenceInit(d3d12_fence* Fence)
 internal
 void FenceFree(d3d12_fence* Fence)
 {
-    Fence->Fence->lpVtbl->Release(Fence->Fence);
+    SafeRelease(Fence->Fence);
 }
 
 internal
 u64 FenceSignal(d3d12_fence* Fence)
 {
     ++Fence->FenceValue;
-    Fence->Fence->lpVtbl->Signal(Fence->Fence, Fence->FenceValue);
+    ID3D12Fence_Signal(Fence->Fence, Fence->FenceValue);
     return(Fence->FenceValue);
 }
 
 internal
 bool32 FenceReached(d3d12_fence* Fence, u64 Value)
 {
-    return(Fence->Fence->lpVtbl->GetCompletedValue(Fence->Fence) >= Value);
+    return(ID3D12Fence_GetCompletedValue(Fence->Fence) >= Value);
 }
 
 internal
 void FenceSync(d3d12_fence* Fence, u64 Value)
 {
-    if (Fence->Fence->lpVtbl->GetCompletedValue(Fence->Fence) < Value)
+    if (ID3D12Fence_GetCompletedValue(Fence->Fence) < Value)
     {
-        Fence->Fence->lpVtbl->SetEventOnCompletion(Fence->Fence, Value, NULL);
+        ID3D12Fence_SetEventOnCompletion(Fence->Fence, Value, NULL);
     }
 }
 
@@ -134,11 +134,11 @@ void RendererInit(HWND Window)
     
     HRESULT Result = D3D12GetDebugInterface(&IID_ID3D12Debug1, (void**)&D3D12.Debug);
     Assert(SUCCEEDED(Result));
-    D3D12.Debug->lpVtbl->EnableDebugLayer(D3D12.Debug);
+    ID3D12Debug1_EnableDebugLayer(D3D12.Debug);
     
     Result = CreateDXGIFactory(&IID_IDXGIFactory, (void**)&D3D12.Factory);
     Assert(SUCCEEDED(Result));
-    D3D12.Factory->lpVtbl->EnumAdapters(D3D12.Factory, 0, &D3D12.Adapter);
+    IDXGIFactory3_EnumAdapters(D3D12.Factory, 0, &D3D12.Adapter);
     
     Result = D3D12CreateDevice((IUnknown*)D3D12.Adapter, D3D_FEATURE_LEVEL_12_0, &IID_ID3D12Device, (void**)&D3D12.Device);
     Assert(SUCCEEDED(Result));
@@ -146,13 +146,13 @@ void RendererInit(HWND Window)
     Result = ID3D12Device_QueryInterface(D3D12.Device, &IID_ID3D12DebugDevice, (void**)&D3D12.DebugDevice);
     Assert(SUCCEEDED(Result));
     
-    D3D12.Adapter->lpVtbl->GetParent(D3D12.Adapter, &IID_IDXGIFactory, (void**)&D3D12.Factory);
+    IDXGIAdapter_GetParent(D3D12.Adapter, &IID_IDXGIFactory, (void**)&D3D12.Factory);
     
     ID3D12InfoQueue* InfoQueue = 0;
     ID3D12Device_QueryInterface(D3D12.Device, &IID_ID3D12InfoQueue, (void**)&InfoQueue);
     
-    InfoQueue->lpVtbl->SetBreakOnSeverity(InfoQueue, D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
-    InfoQueue->lpVtbl->SetBreakOnSeverity(InfoQueue, D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+    ID3D12InfoQueue_SetBreakOnSeverity(InfoQueue, D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+    ID3D12InfoQueue_SetBreakOnSeverity(InfoQueue, D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
     
     D3D12_MESSAGE_SEVERITY SupressSeverities[] =
     {
@@ -173,8 +173,8 @@ void RendererInit(HWND Window)
     Filter.DenyList.NumIDs = ArrayCount(SupressIDs);
     Filter.DenyList.pIDList = SupressIDs;
     
-    InfoQueue->lpVtbl->PushStorageFilter(InfoQueue, &Filter);
-    InfoQueue->lpVtbl->Release(InfoQueue);
+    ID3D12InfoQueue_PushStorageFilter(InfoQueue, &Filter);
+    ID3D12InfoQueue_Release(InfoQueue);
     
     D3D12_COMMAND_QUEUE_DESC QueueDesc = {0};
     Result = ID3D12Device_CreateCommandQueue(D3D12.Device, &QueueDesc, &IID_ID3D12CommandQueue, (void**)&D3D12.Queue);
@@ -192,13 +192,13 @@ void RendererInit(HWND Window)
     SwapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     
     IDXGISwapChain1* Temp = 0;
-    D3D12.Factory->lpVtbl->CreateSwapChainForHwnd(D3D12.Factory, (IUnknown*)D3D12.Queue, D3D12.RenderWindow, &SwapchainDesc, NULL, NULL, &Temp);
-    Temp->lpVtbl->QueryInterface(Temp, &IID_IDXGISwapChain3, (void**)&D3D12.Swapchain);
-    Temp->lpVtbl->Release(Temp);
+    IDXGIFactory3_CreateSwapChainForHwnd(D3D12.Factory, (IUnknown*)D3D12.Queue, D3D12.RenderWindow, &SwapchainDesc, NULL, NULL, &Temp);
+    IDXGISwapChain1_QueryInterface(Temp, &IID_IDXGISwapChain3, (void**)&D3D12.Swapchain);
+    IDXGISwapChain1_Release(Temp);
     
     for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
     {
-        D3D12.Swapchain->lpVtbl->GetBuffer(D3D12.Swapchain, BufferIndex, &IID_ID3D12Resource, (void**)&D3D12.SwapchainBuffers[BufferIndex]);
+        IDXGISwapChain3_GetBuffer(D3D12.Swapchain, BufferIndex, &IID_ID3D12Resource, (void**)&D3D12.SwapchainBuffers[BufferIndex]);
     }
 }
 
@@ -208,7 +208,7 @@ void RendererExit()
     
     for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
     {
-        D3D12.SwapchainBuffers[BufferIndex]->lpVtbl->Release(D3D12.SwapchainBuffers[BufferIndex]);
+        ID3D12Resource_Release(D3D12.SwapchainBuffers[BufferIndex]);
     }
     
     SafeRelease(D3D12.Swapchain);
@@ -218,7 +218,7 @@ void RendererExit()
     SafeRelease(D3D12.Factory);
     SafeRelease(D3D12.Adapter);
     
-    D3D12.DebugDevice->lpVtbl->ReportLiveDeviceObjects(D3D12.DebugDevice, D3D12_RLDO_IGNORE_INTERNAL | D3D12_RLDO_DETAIL);
+    ID3D12DebugDevice_ReportLiveDeviceObjects(D3D12.DebugDevice, D3D12_RLDO_IGNORE_INTERNAL | D3D12_RLDO_DETAIL);
     SafeRelease(D3D12.DebugDevice);
     SafeRelease(D3D12.Debug);
 }
@@ -235,7 +235,7 @@ void RendererRender()
     }
     
     DXGI_SWAP_CHAIN_DESC1 SwapchainDesc;
-    D3D12.Swapchain->lpVtbl->GetDesc1(D3D12.Swapchain, &SwapchainDesc);
+    IDXGISwapChain3_GetDesc1(D3D12.Swapchain, &SwapchainDesc);
     
     if (SwapchainDesc.Width != Width || SwapchainDesc.Height != Height)
     {
@@ -243,16 +243,16 @@ void RendererRender()
         
         for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
         {
-            D3D12.SwapchainBuffers[BufferIndex]->lpVtbl->Release(D3D12.SwapchainBuffers[BufferIndex]);
+            ID3D12Resource_Release(D3D12.SwapchainBuffers[BufferIndex]);
         }
-        D3D12.Swapchain->lpVtbl->ResizeBuffers(D3D12.Swapchain, 0, Width, Height, DXGI_FORMAT_UNKNOWN, 0);
+        IDXGISwapChain3_ResizeBuffers(D3D12.Swapchain, 0, Width, Height, DXGI_FORMAT_UNKNOWN, 0);
         for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
         {
-            D3D12.Swapchain->lpVtbl->GetBuffer(D3D12.Swapchain, BufferIndex, &IID_ID3D12Resource, (void**)&D3D12.SwapchainBuffers[BufferIndex]);
+            IDXGISwapChain3_GetBuffer(D3D12.Swapchain, BufferIndex, &IID_ID3D12Resource, (void**)&D3D12.SwapchainBuffers[BufferIndex]);
         }
     }
     
-    u32 SwapchainIndex = D3D12.Swapchain->lpVtbl->GetCurrentBackBufferIndex(D3D12.Swapchain);
+    u32 SwapchainIndex = IDXGISwapChain3_GetCurrentBackBufferIndex(D3D12.Swapchain);
     FenceSync(&D3D12.DeviceFence, D3D12.SwapchainFenceValues[SwapchainIndex]);
     
     // Render
