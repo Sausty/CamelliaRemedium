@@ -118,11 +118,19 @@
 #define ID3D12Fence_Signal(Fence, FenceValue) Fence->lpVtbl->Signal(Fence, FenceValue)
 #define ID3D12Fence_GetCompletedValue(Fence) Fence->lpVtbl->GetCompletedValue(Fence)
 #define ID3D12Fence_SetEventOnCompletion(Fence, Value, Event) Fence->lpVtbl->SetEventOnCompletion(Fence, Value, Event)
+//~ NOTE(milo.h): ID3D12GraphicsCommandList
+#define ID3D12GraphicsCommandList_Close(c) c->lpVtbl->Close(c)
+#define ID3D12GraphicsCommandList_Reset(c, a, i) c->lpVtbl->Reset(c, a, i)
+#define ID3D12GraphicsCommandList_ResourceBarrier(c, n, b) c->lpVtbl->ResourceBarrier(c, n, b)
+#define ID3D12GraphicsCommandList_RSSetViewports(c, a, b) c->lpVtbl->RSSetViewports(c, a, b)
+#define ID3D12GraphicsCommandList_RSSetScissorRects(c, a, b) c->lpVtbl->RSSetScissorRects(c, a, b)
+#define ID3D12GraphicsCommandList_OMSetRenderTargets(c, a, b, d, e) c->lpVtbl->OMSetRenderTargets(c, a, b, d, e)
+#define ID3D12GraphicsCommandList_ClearRenderTargetView(c, a, b, d, e) c->lpVtbl->ClearRenderTargetView(c, a, b, d, e)
+
 /* D3D12 */
 // TODO(milo.h): ID3D12DeviceRemovedExtendedData(IUnknown)
 // TODO(milo.h): ID3D12DeviceRemovedExtendedDataSettings(IUnknown)
 // TODO(milo.h): ID3D12Fence1(ID3D12Fence)
-// TODO(milo.h): ID3D12GraphicsCommandList(ID3D12CommandList)
 // TODO(milo.h): ID3D12GraphicsCommandList1(ID3D12GraphicsCommandList)
 // TODO(milo.h): ID3D12GraphicsCommandList2(ID3D12GraphicsCommandList1)
 // TODO(milo.h): ID3D12GraphicsCommandList3(ID3D12GraphicsCommandList2)

@@ -222,6 +222,7 @@ Win32MainWindowCallback(HWND Window,
         case WM_SIZE:
         {
             OutputDebugStringA("WM_SIZE\n");
+            RendererResize((u32)LOWORD(WParam), (u32)HIWORD(WParam));
         } break;
         
         case WM_CREATE:
@@ -299,6 +300,13 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     win32_game_code GameCode = Win32LoadGameCode(GameDLLPath, GameTempDLLPath, GameLockFilePath);
     while (Platform.Running)
     {
+        MSG Message;
+        while (PeekMessageA(&Message, WindowHandle, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage(&Message);
+            DispatchMessage(&Message);
+        }
+        
         FILETIME NewDLLWriteTime = Win32GetFileLastWriteTime(GameDLLPath);
         if (CompareFileTime(&NewDLLWriteTime, &GameCode.GameDLLLastWriteTime) != 0)
         {
@@ -314,13 +322,6 @@ int CALLBACK WinMain(HINSTANCE hInstance,
         }
         
         RendererRender();
-        
-        MSG Message;
-        while (PeekMessageA(&Message, WindowHandle, 0, 0, PM_REMOVE))
-        {
-            TranslateMessage(&Message);
-            DispatchMessage(&Message);
-        }
     }
     Win32UnloadGameCode(&GameCode);
     

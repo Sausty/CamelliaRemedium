@@ -30,5 +30,4 @@ typedef struct win32_game_code {
     game_update *Update;
 } win32_game_code;
 
-
 #endif //CAMELLIA_WIN32_H

@@ -8,10 +8,11 @@
 
 #define FRAMES_IN_FLIGHT 3
 
+typedef u32 d3d12_descriptor_handle;
+
 typedef struct d3d12_fence {
     ID3D12Fence* Fence;
-    u64 FenceValue;
-    HANDLE Event;
+    u32 FenceValue;
 } d3d12_fence;
 
 typedef struct d3d12_descriptor_heap {
@@ -19,6 +20,8 @@ typedef struct d3d12_descriptor_heap {
     u32 IncrementSize;
     u32 DescriptorCount;
     D3D12_DESCRIPTOR_HEAP_TYPE Type;
+    
+    bool32* DescriptorLUT;
 } d3d12_descriptor_heap;
 
 typedef struct d3d12_state {
@@ -34,14 +37,21 @@ typedef struct d3d12_state {
     ID3D12CommandQueue* Queue;
     d3d12_fence DeviceFence;
     
+    d3d12_descriptor_heap RenderTargetViewHeap;
+    
+    ID3D12CommandAllocator* CommandAllocator;
+    ID3D12GraphicsCommandList* CommandLists[FRAMES_IN_FLIGHT];
+    
     IDXGISwapChain3* Swapchain;
     ID3D12Resource* SwapchainBuffers[FRAMES_IN_FLIGHT];
-    
+    d3d12_descriptor_handle SwapchainRenderTargets[FRAMES_IN_FLIGHT];
+    d3d12_fence FrameFences[FRAMES_IN_FLIGHT];
     u32 FrameIndex;
 } d3d12_state;
 
 void RendererInit(HWND Window);
 void RendererExit();
 void RendererRender();
+void RendererResize(u32 Width, u32 Height);
 
 #endif //CAMELLIA_RENDERER_D3D12_H
