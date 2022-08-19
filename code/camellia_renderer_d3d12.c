@@ -30,35 +30,31 @@ void FenceInit(d3d12_fence* Fence)
 {
     HRESULT Result = ID3D12Device_CreateFence(D3D12.Device, Fence->FenceValue, D3D12_FENCE_FLAG_NONE, &IID_ID3D12Fence, (void**)&Fence->Fence);
     Assert(SUCCEEDED(Result));
+    
+    Fence->FenceValue = 1;
+    Fence->Event = CreateEvent(NULL, false, false, NULL);
+}
+
+internal
+void WaitForPreviousFrame(d3d12_fence* Fence)
+{
+    const u64 Value = Fence->FenceValue;
+    ID3D12CommandQueue_Signal(D3D12.Queue, Fence->Fence, Value);
+    Fence->FenceValue++;
+    
+    if (ID3D12Fence_GetCompletedValue(Fence->Fence) < Value) 
+    {
+        ID3D12Fence_SetEventOnCompletion(Fence->Fence, Value, Fence->Event);
+        WaitForSingleObject(Fence->Fence, INFINITE);
+    }
+    D3D12.FrameIndex = IDXGISwapChain3_GetCurrentBackBufferIndex(D3D12.Swapchain);
 }
 
 internal
 void FenceFree(d3d12_fence* Fence)
 {
+    CloseHandle(Fence->Event);
     SafeRelease(Fence->Fence);
-}
-
-internal
-u64 FenceSignal(d3d12_fence* Fence)
-{
-    ++Fence->FenceValue;
-    ID3D12Fence_Signal(Fence->Fence, Fence->FenceValue);
-    return(Fence->FenceValue);
-}
-
-internal
-bool32 FenceReached(d3d12_fence* Fence, u64 Value)
-{
-    return(ID3D12Fence_GetCompletedValue(Fence->Fence) >= Value);
-}
-
-internal
-void FenceSync(d3d12_fence* Fence, u64 Value)
-{
-    if (ID3D12Fence_GetCompletedValue(Fence->Fence) < Value)
-    {
-        ID3D12Fence_SetEventOnCompletion(Fence->Fence, Value, NULL);
-    }
 }
 
 internal
@@ -92,18 +88,21 @@ D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeapCPU(d3d12_descriptor_heap* Heap, u32 O
 }
 
 internal
+D3D12_GPU_DESCRIPTOR_HANDLE DescriptorHeapGPU(d3d12_descriptor_heap* Heap, u32 Offset)
+{
+    D3D12_GPU_DESCRIPTOR_HANDLE GPU = {0};
+    ID3D12DescriptorHeap_GetGPUDescriptorHandleForHeapStart(Heap->Heap, &GPU);
+    GPU.ptr += Offset * Heap->IncrementSize;
+    return(GPU);
+}
+
+internal
 void RendererGetWindowDimension(HWND Window, u32* Width, u32* Height)
 {
     RECT ClientRect;
     GetClientRect(Window, &ClientRect);
     *Width = ClientRect.right - ClientRect.left;
     *Height = ClientRect.bottom - ClientRect.top;
-}
-
-internal
-void DeviceFlush(d3d12_fence* Fence)
-{
-    FenceSync(Fence, FenceSignal(Fence));
 }
 
 void RendererLoadDXGI()
@@ -125,6 +124,54 @@ void RendererLoadD3D12()
     }
 }
 
+internal
+void GetHardwareAdapter(IDXGIFactory3* Factory, IDXGIAdapter1** RetAdapter, bool32 RequestHighPerformanceAdapter)
+{
+    *RetAdapter = NULL;
+    IDXGIAdapter1* Adapter = 0;
+    IDXGIFactory6* Factory6;
+    
+    if (SUCCEEDED(IDXGIFactory3_QueryInterface(Factory, &IID_IDXGIFactory6, (void**)&Factory6)))
+    {
+        for (u32 AdapterIndex = 0; SUCCEEDED(IDXGIFactory6_EnumAdapterByGpuPreference(Factory6, AdapterIndex, RequestHighPerformanceAdapter == true ? DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE : DXGI_GPU_PREFERENCE_UNSPECIFIED, &IID_IDXGIAdapter1, (void**)&Adapter)); ++AdapterIndex) 
+        {
+            DXGI_ADAPTER_DESC1 Desc1;
+            IDXGIAdapter1_GetDesc1(Adapter, &Desc1);
+            
+            if (Desc1.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+            {
+                continue;
+            }
+            
+            if (SUCCEEDED(D3D12CreateDevice((IUnknown*)Adapter, D3D_FEATURE_LEVEL_11_0, &IID_ID3D12Device, NULL)))
+            {
+                break;
+            }
+        }
+    }
+    
+    if (Adapter == NULL)
+    {
+        for (u32 AdapterIndex = 0; SUCCEEDED(IDXGIFactory3_EnumAdapters1(Factory, AdapterIndex, &Adapter)); ++AdapterIndex)
+        {
+            DXGI_ADAPTER_DESC1 Desc1;
+            IDXGIAdapter1_GetDesc1(Adapter, &Desc1);
+            
+            if (Desc1.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+            {
+                continue;
+            }
+            
+            if (SUCCEEDED(D3D12CreateDevice((IUnknown*)Adapter, D3D_FEATURE_LEVEL_11_0, &IID_ID3D12Device, NULL)))
+            {
+                break;
+            }
+        }
+    }
+    
+    *RetAdapter = Adapter;
+}
+
 void RendererInit(HWND Window)
 {
     D3D12.RenderWindow = Window;
@@ -138,7 +185,7 @@ void RendererInit(HWND Window)
     
     Result = CreateDXGIFactory(&IID_IDXGIFactory, (void**)&D3D12.Factory);
     Assert(SUCCEEDED(Result));
-    IDXGIFactory3_EnumAdapters(D3D12.Factory, 0, &D3D12.Adapter);
+    GetHardwareAdapter(D3D12.Factory, &D3D12.Adapter, true);
     
     Result = D3D12CreateDevice((IUnknown*)D3D12.Adapter, D3D_FEATURE_LEVEL_12_0, &IID_ID3D12Device, (void**)&D3D12.Device);
     Assert(SUCCEEDED(Result));
@@ -200,11 +247,13 @@ void RendererInit(HWND Window)
     {
         IDXGISwapChain3_GetBuffer(D3D12.Swapchain, BufferIndex, &IID_ID3D12Resource, (void**)&D3D12.SwapchainBuffers[BufferIndex]);
     }
+    
+    WaitForPreviousFrame(&D3D12.DeviceFence);
 }
 
 void RendererExit()
 {
-    DeviceFlush(&D3D12.DeviceFence);
+    WaitForPreviousFrame(&D3D12.DeviceFence);
     
     for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
     {
@@ -239,7 +288,7 @@ void RendererRender()
     
     if (SwapchainDesc.Width != Width || SwapchainDesc.Height != Height)
     {
-        DeviceFlush(&D3D12.DeviceFence);
+        WaitForPreviousFrame(&D3D12.DeviceFence);
         
         for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
         {
@@ -252,10 +301,9 @@ void RendererRender()
         }
     }
     
-    u32 SwapchainIndex = IDXGISwapChain3_GetCurrentBackBufferIndex(D3D12.Swapchain);
-    FenceSync(&D3D12.DeviceFence, D3D12.SwapchainFenceValues[SwapchainIndex]);
-    
     // Render
     
-    D3D12.SwapchainFenceValues[SwapchainIndex] = FenceSignal(&D3D12.DeviceFence);
+    // Present
+    IDXGISwapChain3_Present(D3D12.Swapchain, true, 0);
+    WaitForPreviousFrame(&D3D12.DeviceFence);
 }

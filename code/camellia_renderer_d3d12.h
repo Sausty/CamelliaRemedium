@@ -11,6 +11,7 @@
 typedef struct d3d12_fence {
     ID3D12Fence* Fence;
     u64 FenceValue;
+    HANDLE Event;
 } d3d12_fence;
 
 typedef struct d3d12_descriptor_heap {
@@ -25,7 +26,7 @@ typedef struct d3d12_state {
     
     IDXGIDevice* DXGIDevice;
     IDXGIFactory3* Factory;
-    IDXGIAdapter* Adapter;
+    IDXGIAdapter1* Adapter;
     ID3D12Device* Device;
     ID3D12Debug1* Debug;
     ID3D12DebugDevice* DebugDevice;
@@ -35,7 +36,8 @@ typedef struct d3d12_state {
     
     IDXGISwapChain3* Swapchain;
     ID3D12Resource* SwapchainBuffers[FRAMES_IN_FLIGHT];
-    u64 SwapchainFenceValues[FRAMES_IN_FLIGHT];
+    
+    u32 FrameIndex;
 } d3d12_state;
 
 void RendererInit(HWND Window);
