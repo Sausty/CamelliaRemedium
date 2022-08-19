@@ -39,13 +39,13 @@ typedef struct d3d12_state {
     
     d3d12_descriptor_heap RenderTargetViewHeap;
     
-    ID3D12CommandAllocator* CommandAllocator;
+    ID3D12CommandAllocator* CommandAllocators[FRAMES_IN_FLIGHT];
     ID3D12GraphicsCommandList* CommandLists[FRAMES_IN_FLIGHT];
     
     IDXGISwapChain3* Swapchain;
     ID3D12Resource* SwapchainBuffers[FRAMES_IN_FLIGHT];
     d3d12_descriptor_handle SwapchainRenderTargets[FRAMES_IN_FLIGHT];
-    d3d12_fence FrameFences[FRAMES_IN_FLIGHT];
+    u64 FrameSync[FRAMES_IN_FLIGHT];
     u32 FrameIndex;
 } d3d12_state;
 

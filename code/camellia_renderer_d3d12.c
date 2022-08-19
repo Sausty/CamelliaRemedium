@@ -35,21 +35,31 @@ void FenceInit(d3d12_fence* Fence)
 }
 
 internal
-void SignalFence(d3d12_fence* Fence)
+u64 FenceSignal(d3d12_fence* Fence)
 {
-    ID3D12CommandQueue_Signal(D3D12.Queue, Fence->Fence, ++Fence->FenceValue);
+    ++Fence->FenceValue;
+    ID3D12CommandQueue_Signal(D3D12.Queue, Fence->Fence, Fence->FenceValue);
+    return Fence->FenceValue;
 }
 
 internal
-void WaitFence(d3d12_fence* Fence)
+bool32 FenceReached(d3d12_fence* Fence, u64 Value)
 {
-    if (ID3D12Fence_GetCompletedValue(Fence->Fence) < Fence->FenceValue) 
-    {
-        HANDLE Handle = CreateEvent(NULL, false, false, NULL);
-        ID3D12Fence_SetEventOnCompletion(Fence->Fence, Fence->FenceValue, Handle);
-        WaitForSingleObject(Fence->Fence, INFINITE);
-        CloseHandle(Handle);
+    return ID3D12Fence_GetCompletedValue(Fence->Fence) >= Value;
+}
+
+internal
+void FenceSync(d3d12_fence* Fence, u64 Value)
+{
+    if (!FenceReached(Fence, Value)) {
+        ID3D12Fence_SetEventOnCompletion(Fence->Fence, Value, NULL);
     }
+}
+
+internal
+void FenceFlush(d3d12_fence* Fence)
+{
+    FenceSync(Fence, FenceSignal(Fence));
 }
 
 internal
@@ -277,8 +287,6 @@ void RendererInit(HWND Window)
     IDXGISwapChain1_QueryInterface(Temp, &IID_IDXGISwapChain3, (void**)&D3D12.Swapchain);
     IDXGISwapChain1_Release(Temp);
     
-    ID3D12Device_CreateCommandAllocator(D3D12.Device, D3D12_COMMAND_LIST_TYPE_DIRECT, &IID_ID3D12CommandAllocator, (void**)&D3D12.CommandAllocator);
-    
     for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
     {
         // Get buffers
@@ -288,31 +296,24 @@ void RendererInit(HWND Window)
         ID3D12Device_CreateRenderTargetView(D3D12.Device, D3D12.SwapchainBuffers[BufferIndex], NULL, DescriptorHeapCPU(&D3D12.RenderTargetViewHeap, D3D12.SwapchainRenderTargets[BufferIndex]));
         
         // Create command objects
-        ID3D12Device_CreateCommandList(D3D12.Device, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12.CommandAllocator, NULL, &IID_ID3D12GraphicsCommandList, (void**)&D3D12.CommandLists[BufferIndex]);
+        ID3D12Device_CreateCommandAllocator(D3D12.Device, D3D12_COMMAND_LIST_TYPE_DIRECT, &IID_ID3D12CommandAllocator, (void**)&D3D12.CommandAllocators[BufferIndex]);
+        ID3D12Device_CreateCommandList(D3D12.Device, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12.CommandAllocators[BufferIndex], NULL, &IID_ID3D12GraphicsCommandList, (void**)&D3D12.CommandLists[BufferIndex]);
         ID3D12GraphicsCommandList_Close(D3D12.CommandLists[BufferIndex]);
-        
-        // Create sync
-        FenceInit(&D3D12.FrameFences[BufferIndex]);
     }
-    
-    SignalFence(&D3D12.DeviceFence);
-    WaitFence(&D3D12.DeviceFence);
 }
 
 void RendererExit()
 {
-    SignalFence(&D3D12.DeviceFence);
-    WaitFence(&D3D12.DeviceFence);
+    FenceFlush(&D3D12.DeviceFence);
     
     for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
     {
+        SafeRelease(D3D12.CommandAllocators[BufferIndex]);
         SafeRelease(D3D12.CommandLists[BufferIndex]);
         
-        FenceFree(&D3D12.FrameFences[BufferIndex]);
         FreeDescriptor(&D3D12.RenderTargetViewHeap, D3D12.SwapchainRenderTargets[BufferIndex]);
         ID3D12Resource_Release(D3D12.SwapchainBuffers[BufferIndex]);
     }
-    SafeRelease(D3D12.CommandAllocator);
     
     SafeRelease(D3D12.Swapchain);
     DescriptorHeapFree(&D3D12.RenderTargetViewHeap);
@@ -340,12 +341,13 @@ void RendererRender()
     
     // Start
     D3D12.FrameIndex = IDXGISwapChain3_GetCurrentBackBufferIndex(D3D12.Swapchain);
-    WaitFence(&D3D12.FrameFences[D3D12.FrameIndex]);
+    FenceSync(&D3D12.DeviceFence, D3D12.FrameSync[D3D12.FrameIndex]);
     
+    ID3D12CommandAllocator* Allocator = D3D12.CommandAllocators[D3D12.FrameIndex];
     ID3D12GraphicsCommandList* Command = D3D12.CommandLists[D3D12.FrameIndex];
     
-    ID3D12CommandAllocator_Reset(D3D12.CommandAllocator);
-    ID3D12GraphicsCommandList_Reset(Command, D3D12.CommandAllocator, NULL);
+    ID3D12CommandAllocator_Reset(Allocator);
+    ID3D12GraphicsCommandList_Reset(Command, Allocator, NULL);
     
     // Prepare swapchain
     D3D12_VIEWPORT Viewport;
@@ -390,15 +392,14 @@ void RendererRender()
     
     // Present
     IDXGISwapChain3_Present(D3D12.Swapchain, true, 0);
-    SignalFence(&D3D12.FrameFences[D3D12.FrameIndex]);
+    D3D12.FrameSync[D3D12.FrameIndex] = FenceSignal(&D3D12.DeviceFence);
 }
 
 void RendererResize(u32 Width, u32 Height)
 {
     if (D3D12.Swapchain)
     {
-        SignalFence(&D3D12.DeviceFence);
-        WaitFence(&D3D12.DeviceFence);
+        FenceFlush(&D3D12.DeviceFence);
         
         for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
         {
