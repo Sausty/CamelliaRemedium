@@ -3,8 +3,11 @@
 #ifndef CAMELLIA_RENDERER_D3D12_H
 #define CAMELLIA_RENDERER_D3D12_H
 
+#define COBJMACROS
+#include <d3d12.h>
+#include <dxgi1_6.h>
+
 #include "camellia_platform.h"
-#include "camellia_d3d12.h"
 
 #define FRAMES_IN_FLIGHT 3
 

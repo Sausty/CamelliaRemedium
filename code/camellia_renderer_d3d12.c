@@ -96,7 +96,7 @@ internal
 D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeapCPU(d3d12_descriptor_heap* Heap, u32 Offset)
 {
     D3D12_CPU_DESCRIPTOR_HANDLE CPU = {0};
-    ID3D12DescriptorHeap_GetCPUDescriptorHeapHandleForHeapStart(Heap->Heap, &CPU);
+    ID3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart(Heap->Heap, &CPU);
     CPU.ptr += Offset * Heap->IncrementSize;
     return(CPU);
 }
