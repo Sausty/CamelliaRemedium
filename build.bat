@@ -12,8 +12,7 @@ IF NOT EXIST build (
 REM Build the project
 PUSHD build
 del *.pdb > NUL 2> NUL
-cl %CommonCompilerFlags% ../code/camellia.c -Fmcamelia.map -LD /link -incremental:no -opt:ref -PDB:camelia_%random%.pdb -EXPORT:GameUpdate
-cl %CommonCompilerFlags% ../code/camellia_win32.c ../code/camellia_math.c ../code/camellia_renderer_d3d12.c ../code/camellia_dsound.c -Fmcamelia_win32.map /link %CommonLinkerFlags%
+cl %CommonCompilerFlags% ../code/camellia.c ../code/camellia_win32.c ../code/camellia_math.c ../code/camellia_renderer_d3d12.c ../code/camellia_dsound.c ../code/camellia_renderer.c -Fmcamelia_win32.map /link %CommonLinkerFlags%
 POPD
 
 echo -- [GAME BUILD] Build completed. --

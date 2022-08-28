@@ -1,5 +1,7 @@
 #include "camellia_renderer_d3d12.h"
 
+#include <stdio.h>
+
 #define SafeRelease(obj) if (obj) { obj->lpVtbl->Release(obj); }
 
 #define D3D12_CREATE_DEVICE(name) HRESULT name(IUnknown *pAdapter, D3D_FEATURE_LEVEL MinimumFeatureLevel, REFIID riid, void **ppDevice)
@@ -11,17 +13,29 @@ typedef D3D12_GET_DEBUG_INTERFACE(d3d12_get_debug_interface);
 #define CREATE_DXGI_FACTORY(name) HRESULT name(REFIID riid, void **ppFactory)
 typedef CREATE_DXGI_FACTORY(create_dxgi_factory);
 
+#define D3D12_SERIALIZE_ROOT_SIGNATURE(name) HRESULT name(const D3D12_ROOT_SIGNATURE_DESC* pRootSignature, D3D_ROOT_SIGNATURE_VERSION Version, ID3DBlob **ppBlob, ID3DBlob **ppErrorBlob)
+typedef D3D12_SERIALIZE_ROOT_SIGNATURE(d3d12_serialize_root_signature);
+
+#define D3D_COMPILE(name) HRESULT name(LPCVOID pSrcData, SIZE_T SrcDataSize, LPCSTR pSourceName, const D3D_SHADER_MACRO *pDefines, ID3DInclude *pInclude, LPCSTR pEntrypoint, LPCSTR pTarget, UINT Flags1, UINT Flags2, ID3DBlob **ppCode, ID3DBlob **ppErrorMsgs)
+typedef D3D_COMPILE(d3d_compile);
+
 D3D12_CREATE_DEVICE(D3D12CreateDeviceStub) { return S_FALSE; }
 D3D12_GET_DEBUG_INTERFACE(D3D12GetDebugInterfaceStub) { return S_FALSE; }
 CREATE_DXGI_FACTORY(CreateDXGIFactoryStub) { return S_FALSE; }
+D3D12_SERIALIZE_ROOT_SIGNATURE(D3D12SerializeRootSignatureStub) { return S_FALSE; }
+D3D_COMPILE(D3DCompileStub) { return S_FALSE; }
 
 global d3d12_create_device *d3d12CreateDevice_ = D3D12CreateDeviceStub;
 global d3d12_get_debug_interface *d3d12GetDebugInterface_ = D3D12GetDebugInterfaceStub;
 global create_dxgi_factory *createDXGIFactory_ = CreateDXGIFactoryStub;
+global d3d12_serialize_root_signature *d3d12SerializeRootSignature_ = D3D12SerializeRootSignatureStub;
+global d3d_compile *d3dCompile_ = D3DCompileStub;
 
 #define D3D12CreateDevice d3d12CreateDevice_
 #define D3D12GetDebugInterface d3d12GetDebugInterface_
 #define CreateDXGIFactory createDXGIFactory_
+#define D3D12SerializeRootSignature d3d12SerializeRootSignature_
+#define D3DCompile d3dCompile_
 
 global d3d12_state D3D12;
 
@@ -132,7 +146,7 @@ void FreeDescriptor(d3d12_descriptor_heap* Heap, u32 Descriptor)
 }
 
 internal
-void RendererGetWindowDimension(HWND Window, u32* Width, u32* Height)
+void D3D12GetWindowDimension(HWND Window, u32* Width, u32* Height)
 {
     RECT ClientRect;
     GetClientRect(Window, &ClientRect);
@@ -140,7 +154,7 @@ void RendererGetWindowDimension(HWND Window, u32* Width, u32* Height)
     *Height = ClientRect.bottom - ClientRect.top;
 }
 
-void RendererLoadDXGI()
+void D3D12LoadDXGI()
 {
     HMODULE Library = LoadLibraryA("dxgi.dll");
     if (Library)
@@ -149,18 +163,28 @@ void RendererLoadDXGI()
     }
 }
 
-void RendererLoadD3D12()
+void D3D12LoadD3D12()
 {
     HMODULE Library = LoadLibraryA("d3d12.dll");
     if (Library)
     {
         D3D12CreateDevice = (d3d12_create_device*)GetProcAddress(Library, "D3D12CreateDevice");
         D3D12GetDebugInterface = (d3d12_get_debug_interface*)GetProcAddress(Library, "D3D12GetDebugInterface");
+        D3D12SerializeRootSignature = (d3d12_serialize_root_signature*)GetProcAddress(Library, "D3D12SerializeRootSignature");
+    }
+}
+
+void D3D12LoadD3DShader()
+{
+    HMODULE Library = LoadLibraryA("d3dcompiler_47.dll");
+    if (Library)
+    {
+        D3DCompile = (d3d_compile*)GetProcAddress(Library, "D3DCompile");
     }
 }
 
 internal
-void GetHardwareAdapter(IDXGIFactory3* Factory, IDXGIAdapter1** RetAdapter, bool32 RequestHighPerformanceAdapter)
+void D3D12GetHardwareAdapter(IDXGIFactory3* Factory, IDXGIAdapter1** RetAdapter, bool32 RequestHighPerformanceAdapter)
 {
     *RetAdapter = NULL;
     IDXGIAdapter1* Adapter = 0;
@@ -207,12 +231,164 @@ void GetHardwareAdapter(IDXGIFactory3* Factory, IDXGIAdapter1** RetAdapter, bool
     *RetAdapter = Adapter;
 }
 
-void RendererInit(HWND Window)
+void D3D12InitBuffer(u64 BufferSize, u64 BufferStride, gpu_buffer_usage Usage, gpu_buffer* Buffer)
+{
+    Buffer->BufferSize = BufferSize;
+    Buffer->BufferStride = BufferStride;
+    Buffer->Usage = Usage;
+    
+    D3D12_HEAP_PROPERTIES HeapProperties;
+    ZeroMemory(&HeapProperties, sizeof(D3D12_HEAP_PROPERTIES));
+    HeapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;
+    HeapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+    HeapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+    HeapProperties.CreationNodeMask = 0;
+    HeapProperties.VisibleNodeMask = 0;
+    
+    D3D12_RESOURCE_DESC ResourceDesc;
+    ZeroMemory(&ResourceDesc, sizeof(D3D12_RESOURCE_DESC));
+    ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    ResourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+    ResourceDesc.Width = BufferSize;
+    ResourceDesc.Height = 1;
+    ResourceDesc.DepthOrArraySize = 1;
+    ResourceDesc.MipLevels = 1;
+    ResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+    ResourceDesc.SampleDesc.Count = 1;
+    ResourceDesc.SampleDesc.Quality = 0;
+    ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+    
+    HRESULT Result = ID3D12Device_CreateCommittedResource(D3D12.Device, &HeapProperties, 0, &ResourceDesc, D3D12_RESOURCE_STATE_GENERIC_READ, NULL, &IID_ID3D12Resource, (void**)&Buffer->Resource);
+    Assert(SUCCEEDED(Result));
+    
+    switch (Usage)
+    {
+        case GpuBufferUsage_Vertex:
+        {
+            Buffer->VertexBufferView.BufferLocation = ID3D12Resource_GetGPUVirtualAddress(Buffer->Resource);
+            Buffer->VertexBufferView.SizeInBytes = BufferSize;
+            Buffer->VertexBufferView.StrideInBytes = BufferStride;
+            break;
+        }
+        case GpuBufferUsage_Index:
+        {
+            Buffer->IndexBufferView.BufferLocation = ID3D12Resource_GetGPUVirtualAddress(Buffer->Resource);
+            Buffer->IndexBufferView.SizeInBytes = BufferSize;
+            Buffer->IndexBufferView.Format = DXGI_FORMAT_R32_UINT;
+            break;
+        }
+        case GpuBufferUsage_Constant:
+        {
+            Buffer->ConstantBufferView.BufferLocation = ID3D12Resource_GetGPUVirtualAddress(Buffer->Resource);
+            Buffer->ConstantBufferView.SizeInBytes = BufferSize;
+            break;
+        }
+    }
+}
+
+void D3D12UploadBuffer(u64 BufferSize, const void* Data, gpu_buffer* Buffer)
+{
+    void* Pointer;
+    Assert(SUCCEEDED(ID3D12Resource_Map(Buffer->Resource, 0, NULL, &Pointer)));
+    memcpy(Pointer, Data, BufferSize);
+    ID3D12Resource_Unmap(Buffer->Resource, 0, NULL);
+}
+
+void D3D12FreeBuffer(gpu_buffer* Buffer)
+{
+    SafeRelease(Buffer->Resource);
+}
+
+void D3D12InitForward()
+{
+    D3D12_ROOT_SIGNATURE_DESC RootDesc;
+    ZeroMemory(&RootDesc, sizeof(D3D12_ROOT_SIGNATURE_DESC));
+    RootDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+    
+    ID3DBlob* Signature = NULL;
+    ID3DBlob* Error = NULL;
+    
+    HRESULT Result = D3D12SerializeRootSignature(&RootDesc, D3D_ROOT_SIGNATURE_VERSION_1, &Signature, &Error);
+    Assert(SUCCEEDED(Result));
+    Result = ID3D12Device_CreateRootSignature(D3D12.Device, 0, Signature->lpVtbl->GetBufferPointer(Signature), Signature->lpVtbl->GetBufferSize(Signature), &IID_ID3D12RootSignature, (void**)&D3D12.ForwardPipeline.RootSignature);
+    Assert(SUCCEEDED(Result));
+    
+    ID3DBlob* VertexShader = NULL;
+    ID3DBlob* FragmentShader = NULL;
+    
+    u32 ShaderSize = PlatformState.GetFileSize("shaders/forward.hlsl");
+    char* ShaderSource = PlatformState.ReadFile("shaders/forward.hlsl");
+    
+    Result = D3DCompile(ShaderSource, ShaderSize, NULL, NULL, NULL, "VSMain", "vs_5_0", 0, 0, &VertexShader, &Error);
+    if (Error) OutputDebugStringA((char*)Error->lpVtbl->GetBufferPointer(Error));
+    Assert(SUCCEEDED(Result));
+    Result = D3DCompile(ShaderSource, ShaderSize, NULL, NULL, NULL, "PSMain", "ps_5_0", 0, 0, &FragmentShader, &Error);
+    if (Error) OutputDebugStringA((char*)Error->lpVtbl->GetBufferPointer(Error));
+    Assert(SUCCEEDED(Result));
+    
+    D3D12_INPUT_ELEMENT_DESC InputElementDescs[] =
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+    };
+    
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC PSODesc;
+    ZeroMemory(&PSODesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+    PSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+    PSODesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+    PSODesc.RasterizerState.DepthClipEnable = false;
+    PSODesc.RasterizerState.FrontCounterClockwise = false;
+    PSODesc.RasterizerState.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+    PSODesc.RasterizerState.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+    PSODesc.RasterizerState.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+    PSODesc.RasterizerState.MultisampleEnable = false;
+    PSODesc.RasterizerState.AntialiasedLineEnable = false;
+    PSODesc.RasterizerState.ForcedSampleCount = 1;
+    PSODesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+    PSODesc.pRootSignature = D3D12.ForwardPipeline.RootSignature;
+    PSODesc.VS.pShaderBytecode = VertexShader->lpVtbl->GetBufferPointer(VertexShader);
+    PSODesc.VS.BytecodeLength = VertexShader->lpVtbl->GetBufferSize(VertexShader);
+    PSODesc.PS.pShaderBytecode = FragmentShader->lpVtbl->GetBufferPointer(FragmentShader);
+    PSODesc.PS.BytecodeLength = FragmentShader->lpVtbl->GetBufferSize(FragmentShader);
+    PSODesc.InputLayout.NumElements = 2;
+    PSODesc.InputLayout.pInputElementDescs = InputElementDescs;
+    PSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    PSODesc.BlendState.AlphaToCoverageEnable = false;
+    PSODesc.BlendState.IndependentBlendEnable = false;
+    PSODesc.BlendState.RenderTarget[0].BlendEnable = false;
+    PSODesc.BlendState.RenderTarget[0].LogicOpEnable = false;
+    PSODesc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+    PSODesc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
+    PSODesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+    PSODesc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+    PSODesc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+    PSODesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    PSODesc.BlendState.RenderTarget[0].LogicOp = D3D12_LOGIC_OP_NOOP;
+    PSODesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    PSODesc.SampleMask = UINT_MAX;
+    PSODesc.NumRenderTargets = 1;
+    PSODesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    PSODesc.SampleDesc.Count = 1;
+    PSODesc.SampleDesc.Quality = 0;
+    
+    Result = ID3D12Device_CreateGraphicsPipelineState(D3D12.Device, &PSODesc, &IID_ID3D12PipelineState, (void**)&D3D12.ForwardPipeline.PipelineState);
+    Assert(SUCCEEDED(Result));
+    
+    PlatformState.HeapFree(ShaderSource);
+    SafeRelease(VertexShader);
+    SafeRelease(FragmentShader);
+    SafeRelease(Signature);
+    SafeRelease(Error);
+}
+
+void D3D12Init(HWND Window)
 {
     D3D12.RenderWindow = Window;
     
-    RendererLoadDXGI();
-    RendererLoadD3D12();
+    D3D12LoadDXGI();
+    D3D12LoadD3D12();
+    D3D12LoadD3DShader();
     
     HRESULT Result = D3D12GetDebugInterface(&IID_ID3D12Debug1, (void**)&D3D12.Debug);
     Assert(SUCCEEDED(Result));
@@ -220,7 +396,7 @@ void RendererInit(HWND Window)
     
     Result = CreateDXGIFactory(&IID_IDXGIFactory, (void**)&D3D12.Factory);
     Assert(SUCCEEDED(Result));
-    GetHardwareAdapter(D3D12.Factory, &D3D12.Adapter, true);
+    D3D12GetHardwareAdapter(D3D12.Factory, &D3D12.Adapter, true);
     
     // Create device
     Result = D3D12CreateDevice((IUnknown*)D3D12.Adapter, D3D_FEATURE_LEVEL_12_0, &IID_ID3D12Device, (void**)&D3D12.Device);
@@ -274,7 +450,7 @@ void RendererInit(HWND Window)
     
     // Create Swap Chain
     DXGI_SWAP_CHAIN_DESC1 SwapchainDesc = {0};
-    RendererGetWindowDimension(D3D12.RenderWindow, &SwapchainDesc.Width, &SwapchainDesc.Height);
+    D3D12GetWindowDimension(D3D12.RenderWindow, &SwapchainDesc.Width, &SwapchainDesc.Height);
     SwapchainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     SwapchainDesc.SampleDesc.Count = 1;
     SwapchainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -300,11 +476,19 @@ void RendererInit(HWND Window)
         ID3D12Device_CreateCommandList(D3D12.Device, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12.CommandAllocators[BufferIndex], NULL, &IID_ID3D12GraphicsCommandList, (void**)&D3D12.CommandLists[BufferIndex]);
         ID3D12GraphicsCommandList_Close(D3D12.CommandLists[BufferIndex]);
     }
+    
+    D3D12InitForward();
 }
 
-void RendererExit()
+void D3D12Wait()
 {
     FenceFlush(&D3D12.DeviceFence);
+}
+
+void D3D12Exit()
+{
+    SafeRelease(D3D12.ForwardPipeline.PipelineState);
+    SafeRelease(D3D12.ForwardPipeline.RootSignature);
     
     for (u32 BufferIndex = 0; BufferIndex < FRAMES_IN_FLIGHT; BufferIndex++)
     {
@@ -328,18 +512,17 @@ void RendererExit()
     SafeRelease(D3D12.Debug);
 }
 
-void RendererRender()
+void D3D12Begin()
 {
     u32 Width = 0;
     u32 Height = 0;
-    RendererGetWindowDimension(D3D12.RenderWindow, &Width, &Height);
+    D3D12GetWindowDimension(D3D12.RenderWindow, &Width, &Height);
     
     if (Width == 0 || Height == 0)
     {
         return;
     }
     
-    // Start
     D3D12.FrameIndex = IDXGISwapChain3_GetCurrentBackBufferIndex(D3D12.Swapchain);
     FenceSync(&D3D12.DeviceFence, D3D12.FrameSync[D3D12.FrameIndex]);
     
@@ -379,7 +562,21 @@ void RendererRender()
     ID3D12GraphicsCommandList_OMSetRenderTargets(Command, 1, &RenderTarget, false, NULL);
     const f32 Clear[4] = { 0.1f, 0.3f, 0.3f, 1.0f };
     ID3D12GraphicsCommandList_ClearRenderTargetView(Command, RenderTarget, Clear, 0, NULL);
+    ID3D12GraphicsCommandList_IASetPrimitiveTopology(Command, D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ID3D12GraphicsCommandList_SetGraphicsRootSignature(Command, D3D12.ForwardPipeline.RootSignature);
+    ID3D12GraphicsCommandList_SetPipelineState(Command, D3D12.ForwardPipeline.PipelineState);
+}
+
+void D3D12End()
+{    
+    ID3D12GraphicsCommandList* Command = D3D12.CommandLists[D3D12.FrameIndex];
     
+    D3D12_RESOURCE_BARRIER Barrier;
+    ZeroMemory(&Barrier, sizeof(D3D12_RESOURCE_BARRIER));
+    Barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    Barrier.Transition.pResource = D3D12.SwapchainBuffers[D3D12.FrameIndex];
+    Barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+    Barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
     Barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     Barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
     ID3D12GraphicsCommandList_ResourceBarrier(Command, 1, &Barrier);
@@ -395,7 +592,33 @@ void RendererRender()
     D3D12.FrameSync[D3D12.FrameIndex] = FenceSignal(&D3D12.DeviceFence);
 }
 
-void RendererResize(u32 Width, u32 Height)
+void D3D12BindBuffer(gpu_buffer* Buffer)
+{
+    ID3D12GraphicsCommandList* Command = D3D12.CommandLists[D3D12.FrameIndex];
+    
+    switch (Buffer->Usage)
+    {
+        case GpuBufferUsage_Vertex:
+        {
+            const D3D12_VERTEX_BUFFER_VIEW Views[] = { Buffer->VertexBufferView }; 
+            ID3D12GraphicsCommandList_IASetVertexBuffers(Command, 0, 1, Views);
+            break;
+        }
+        case GpuBufferUsage_Index:
+        {
+            ID3D12GraphicsCommandList_IASetIndexBuffer(Command, &Buffer->IndexBufferView);
+            break;
+        }
+    }
+}
+
+void D3D12Draw(u32 VertexCount)
+{
+    ID3D12GraphicsCommandList* Command = D3D12.CommandLists[D3D12.FrameIndex];
+    ID3D12GraphicsCommandList_DrawInstanced(Command, VertexCount, 1, 0, 0);
+}
+
+void D3D12Resize(u32 Width, u32 Height)
 {
     if (D3D12.Swapchain)
     {

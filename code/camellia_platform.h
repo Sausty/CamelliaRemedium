@@ -41,6 +41,20 @@ typedef double f64;
 
 #define MAX_GAMEPADS 4
 
+#if defined(_WIN32)
+#define PLATFORM_WIN32
+#define RENDERER_D3D12
+#elif defined(__APPLE_)
+#define PLATFORM_MAC
+#define RENDERER_METAL
+#elif defined(__linux__)
+#define PLATFORM_LINUX
+#define RENDERER_VULKAN
+#elif defined(__switch__)
+#define PLATFORM_SWITCH
+#define RENDERER_NVN
+#endif
+
 typedef struct platform_gamepad {
     // NOTE(milo): State
     bool32 Connected;
@@ -79,6 +93,11 @@ typedef struct platform_gamepad {
 
 typedef struct platform_state {
     platform_gamepad Gamepads[MAX_GAMEPADS];
+    
+    void* (*HeapAlloc)(u64 Size);
+    void (*HeapFree)(void* Memory);
+    u32 (*GetFileSize)(const char* FilePath);
+    char* (*ReadFile)(const char* FilePath);
 } platform_state;
 
 extern platform_state PlatformState;

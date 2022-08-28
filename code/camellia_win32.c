@@ -1,6 +1,6 @@
 #include "camellia_win32.h"
 #include "camellia_math.h"
-#include "camellia_renderer_d3d12.h"
+#include "camellia_renderer.h"
 #include "camellia_dsound.h"
 
 #include <string.h>
@@ -83,56 +83,42 @@ void Win32LoadXInput()
 }
 
 internal
-win32_game_code Win32LoadGameCode(char* DLLPath, char* DLLTempPath, char* LockPath) 
+void* Win32HeapAlloc(u64 Size)
 {
-    win32_game_code Result = {0};
-    
-    WIN32_FILE_ATTRIBUTE_DATA Ignored;
-    if (!GetFileAttributesExA(LockPath, GetFileExInfoStandard, &Ignored)) 
-    {
-        Result.GameDLLLastWriteTime = Win32GetFileLastWriteTime(DLLPath);
-        
-        while (true) 
-        {
-            if (CopyFile(DLLPath, DLLTempPath, FALSE)) 
-            {
-                break;
-            }
-            
-            if (GetLastError() == ERROR_FILE_NOT_FOUND)
-            {
-                break;
-            }
-        }
-        
-        Result.GameCodeDLL = LoadLibraryA(DLLTempPath);
-        if (Result.GameCodeDLL)
-        {
-            Result.Update = (game_update*)GetProcAddress(Result.GameCodeDLL, "GameUpdate");
-            
-            Result.IsValid = (!!Result.Update);
-        }
-        
-        if (!Result.IsValid)
-        {
-            Result.Update = GameUpdateStub;
-        }
-    }
-    
-    return(Result);
+    return HeapAlloc(GetProcessHeap(), 0, Size);
 }
 
-internal void
-Win32UnloadGameCode(win32_game_code *GameCode)
+internal
+void Win32HeapFree(void* Memory)
 {
-    if (GameCode->GameCodeDLL)
-    {
-        FreeLibrary(GameCode->GameCodeDLL);
-        GameCode->GameCodeDLL = 0;
+    HeapFree(GetProcessHeap(), 0, Memory);
+}
+
+internal
+u32 Win32GetFileSize(const char* FilePath)
+{
+    HANDLE File = CreateFileA(FilePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    DWORD FileSize = GetFileSize(File, NULL);
+    CloseHandle(File);
+    return FileSize;
+}
+
+internal
+char* Win32ReadFile(const char* FilePath)
+{
+    HANDLE File = CreateFileA(FilePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (File == INVALID_HANDLE_VALUE) {
+        CloseHandle(File);
+        Assert(false);
     }
     
-    GameCode->IsValid = false;
-    GameCode->Update = GameUpdateStub;
+    DWORD FileSize = GetFileSize(File, NULL);
+    void* Buffer = Win32HeapAlloc(FileSize + 1);
+    DWORD BytesRead = 0;
+    ReadFile(File, Buffer, FileSize, &BytesRead, NULL);
+    ((u8*)Buffer)[FileSize] = 0;
+    CloseHandle(File);
+    return Buffer;
 }
 
 internal
@@ -222,7 +208,7 @@ Win32MainWindowCallback(HWND Window,
         case WM_SIZE:
         {
             OutputDebugStringA("WM_SIZE\n");
-            RendererResize((u32)LOWORD(WParam), (u32)HIWORD(WParam));
+            Renderer.Resize((u32)LOWORD(WParam), (u32)HIWORD(WParam));
         } break;
         
         case WM_CREATE:
@@ -251,6 +237,13 @@ int CALLBACK WinMain(HINSTANCE hInstance,
                      LPSTR lpCmdLine, 
                      int nCmdShow)
 {
+    PlatformState.HeapAlloc = Win32HeapAlloc;
+    PlatformState.HeapFree = Win32HeapFree;
+    PlatformState.GetFileSize = Win32GetFileSize;
+    PlatformState.ReadFile = Win32ReadFile;
+    
+    RendererLoad();
+    
     WNDCLASS WindowClass = {0};
     WindowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
     WindowClass.hInstance = hInstance;
@@ -280,41 +273,20 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     }
     
     DirectSoundInit(WindowHandle);
-    RendererInit(WindowHandle);
+    Renderer.Init(WindowHandle);
     
     Win32GetExePath();
-    
-    char GameDLLName[] = "camellia.dll";
-    char GameDLLPath[WIN32_MAX_PATH] = {0};
-    Win32BuildPathInExeDir(GameDLLName, sizeof(GameDLLName) - 1, GameDLLPath, sizeof(GameDLLPath));
-    
-    char GameTempDLLName[] = "camellia1.dll";
-    char GameTempDLLPath[WIN32_MAX_PATH] = {0};
-    Win32BuildPathInExeDir(GameTempDLLName, sizeof(GameTempDLLName) - 1, GameTempDLLPath, sizeof(GameTempDLLPath));
-    
-    char GameLockFileName[] = "camellia_lock.tmp";
-    char GameLockFilePath[WIN32_MAX_PATH] = {0};
-    Win32BuildPathInExeDir(GameLockFileName, sizeof(GameLockFileName) - 1, GameLockFilePath, sizeof(GameLockFilePath));
-    
     Win32LoadXInput();
-    win32_game_code GameCode = Win32LoadGameCode(GameDLLPath, GameTempDLLPath, GameLockFilePath);
+    
+    GameInit();
+    
     while (Platform.Running)
-    {
-        FILETIME NewDLLWriteTime = Win32GetFileLastWriteTime(GameDLLPath);
-        if (CompareFileTime(&NewDLLWriteTime, &GameCode.GameDLLLastWriteTime) != 0)
-        {
-            Win32UnloadGameCode(&GameCode);
-            GameCode = Win32LoadGameCode(GameDLLPath, GameTempDLLPath, GameLockFilePath);
-        }
-        
+    {   
         Win32UpdateXInput();
         
-        if (GameCode.Update)
-        {
-            GameCode.Update();
-        }
-        
-        RendererRender();
+        Renderer.Begin();        
+        GameUpdate();
+        Renderer.End();
         
         MSG Message;
         while (PeekMessageA(&Message, WindowHandle, 0, 0, PM_REMOVE))
@@ -323,9 +295,9 @@ int CALLBACK WinMain(HINSTANCE hInstance,
             DispatchMessage(&Message);
         }
     }
-    Win32UnloadGameCode(&GameCode);
-    
-    RendererExit();
+    Renderer.Wait();
+    GameFree();
+    Renderer.Exit();
     DirectSoundExit();
     
     return(0);

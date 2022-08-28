@@ -22,12 +22,4 @@ typedef struct win32_window_dimension {
     u32 Height;
 } win32_window_dimension;
 
-typedef struct win32_game_code {
-    HMODULE GameCodeDLL;
-    FILETIME GameDLLLastWriteTime;
-    bool32 IsValid;
-    
-    game_update *Update;
-} win32_game_code;
-
 #endif //CAMELLIA_WIN32_H

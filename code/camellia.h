@@ -5,10 +5,8 @@
 
 #include "camellia_platform.h"
 
-#define GAME_UPDATE(name) void name()
-typedef GAME_UPDATE(game_update);
-GAME_UPDATE(GameUpdateStub)
-{
-}
+void GameInit();
+void GameUpdate();
+void GameFree();
 
 #endif //CAMELLIA_H

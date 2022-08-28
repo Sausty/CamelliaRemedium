@@ -4,7 +4,7 @@
 #define CAMELLIA_RENDERER_D3D12_H
 
 #define COBJMACROS
-#include <d3d12.h>
+#include <d3d12.h> 
 #include <dxgi1_6.h>
 
 #include "camellia_platform.h"
@@ -12,6 +12,12 @@
 #define FRAMES_IN_FLIGHT 3
 
 typedef u32 d3d12_descriptor_handle;
+
+typedef enum gpu_buffer_usage {
+    GpuBufferUsage_Vertex = 0,
+    GpuBufferUsage_Index = 1,
+    GpuBufferUsage_Constant = 2
+} gpu_buffer_usage;
 
 typedef struct d3d12_fence {
     ID3D12Fence* Fence;
@@ -26,6 +32,22 @@ typedef struct d3d12_descriptor_heap {
     
     bool32* DescriptorLUT;
 } d3d12_descriptor_heap;
+
+typedef struct d3d12_graphics_pipeline {
+    ID3D12RootSignature* RootSignature;
+    ID3D12PipelineState* PipelineState;
+} d3d12_graphics_pipeline;
+
+typedef struct gpu_buffer {
+    ID3D12Resource* Resource;
+    u64 BufferSize;
+    u64 BufferStride;
+    gpu_buffer_usage Usage;
+    
+    D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
+    D3D12_INDEX_BUFFER_VIEW IndexBufferView;
+    D3D12_CONSTANT_BUFFER_VIEW_DESC ConstantBufferView;
+} gpu_buffer;
 
 typedef struct d3d12_state {
     HWND RenderWindow;
@@ -50,11 +72,21 @@ typedef struct d3d12_state {
     d3d12_descriptor_handle SwapchainRenderTargets[FRAMES_IN_FLIGHT];
     u64 FrameSync[FRAMES_IN_FLIGHT];
     u32 FrameIndex;
+    
+    d3d12_graphics_pipeline ForwardPipeline;
 } d3d12_state;
 
-void RendererInit(HWND Window);
-void RendererExit();
-void RendererRender();
-void RendererResize(u32 Width, u32 Height);
+void D3D12InitBuffer(u64 BufferSize, u64 BufferStride, gpu_buffer_usage Usage, gpu_buffer* Buffer);
+void D3D12UploadBuffer(u64 BufferSize, const void* Data, gpu_buffer* Buffer);
+void D3D12FreeBuffer(gpu_buffer* Buffer);
+
+void D3D12Init(void* Window);
+void D3D12Exit();
+void D3D12Begin();
+void D3D12End();
+void D3D12BindBuffer(gpu_buffer* Buffer);
+void D3D12Draw(u32 VertexCount);
+void D3D12Wait();
+void D3D12Resize(u32 Width, u32 Height);
 
 #endif //CAMELLIA_RENDERER_D3D12_H
