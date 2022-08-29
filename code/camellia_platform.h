@@ -44,6 +44,7 @@ typedef double f64;
 #if defined(_WIN32)
 #define PLATFORM_WIN32
 #define RENDERER_D3D12
+#define AUDIO_DSOUND
 #elif defined(__APPLE_)
 #define PLATFORM_MAC
 #define RENDERER_METAL

@@ -1,7 +1,7 @@
 #include "camellia_win32.h"
 #include "camellia_math.h"
 #include "camellia_renderer.h"
-#include "camellia_dsound.h"
+#include "camellia_audio.h"
 
 #include <string.h>
 #include <xinput.h>
@@ -230,6 +230,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     PlatformState.HeapFree = Win32HeapFree;
     PlatformState.ReadFile = Win32ReadFile;
     
+    AudioEngineLoad();
     RendererLoad();
     
     WNDCLASS WindowClass = {0};
@@ -260,7 +261,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
         // TODO(milo): Error loading
     }
     
-    DirectSoundInit(WindowHandle);
+    Audio.Init(WindowHandle);
     Renderer.Init(WindowHandle);
     
     Win32GetExePath();
@@ -286,7 +287,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     Renderer.Wait();
     GameFree();
     Renderer.Exit();
-    DirectSoundExit();
+    Audio.Exit();
     
     return(0);
 }

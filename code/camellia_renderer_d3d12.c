@@ -569,6 +569,15 @@ void D3D12Begin()
 
 void D3D12End()
 {    
+    u32 Width = 0;
+    u32 Height = 0;
+    D3D12GetWindowDimension(D3D12.RenderWindow, &Width, &Height);
+    
+    if (Width == 0 || Height == 0)
+    {
+        return;
+    }
+    
     ID3D12GraphicsCommandList* Command = D3D12.CommandLists[D3D12.FrameIndex];
     
     D3D12_RESOURCE_BARRIER Barrier;

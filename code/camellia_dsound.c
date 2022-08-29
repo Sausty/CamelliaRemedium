@@ -1,5 +1,7 @@
 #include "camellia_dsound.h"
 
+#include "camellia_math.h"
+
 #define CO_INITIALIZE_EX(name) HRESULT name(LPVOID pvReserved, DWORD dwCoInit)
 typedef CO_INITIALIZE_EX(co_initialize_ex);
 
@@ -42,7 +44,7 @@ void DirectSoundLoad()
     }
 }
 
-void DirectSoundInit(HWND Window)
+void DirectSoundInit(void* Window)
 {
     DirectSoundLoadOle();
     DirectSoundLoad();
@@ -51,7 +53,7 @@ void DirectSoundInit(HWND Window)
     
     HRESULT Result = DirectSoundCreate8(NULL, &DSound.Device, NULL);
     Assert(Result == DS_OK);
-    Result = IDirectSound8_SetCooperativeLevel(DSound.Device, Window, DSSCL_PRIORITY);
+    Result = IDirectSound8_SetCooperativeLevel(DSound.Device, (HWND)Window, DSSCL_PRIORITY);
     Assert(Result == DS_OK);
     
     DSound.DeviceCaps.dwSize = sizeof(DSCAPS);
@@ -85,4 +87,73 @@ void DirectSoundExit()
     IDirectSound8_Release(DSound.Device);
     
     CoUninitialize();
+}
+
+void DirectSoundInitSource(sound_data* Sound, audio_source* Source)
+{
+    IDirectSoundBuffer8* Buffer;
+    
+    WAVEFORMATEX WaveFormat;
+    ZeroMemory(&WaveFormat, sizeof(WAVEFORMATEX));
+    WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
+    WaveFormat.nChannels = Sound->ChannelCount;
+    WaveFormat.nSamplesPerSec = Sound->SampleRate;
+    WaveFormat.wBitsPerSample = 16;
+    WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+    WaveFormat.nAvgBytesPerSec = (WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign);
+    WaveFormat.cbSize = 0;
+    
+    DSBUFFERDESC BufferDesc;
+    ZeroMemory(&BufferDesc, sizeof(DSBUFFERDESC));
+    BufferDesc.dwSize = sizeof(DSBUFFERDESC);
+    BufferDesc.dwFlags = DSBCAPS_CTRLVOLUME | DSBCAPS_GLOBALFOCUS;
+    BufferDesc.dwBufferBytes = Sound->SampleCount * Sound->ChannelCount * sizeof(i16);
+    BufferDesc.lpwfxFormat = &WaveFormat;
+    BufferDesc.guid3DAlgorithm = GUID_NULL;
+    
+    Assert(BufferDesc.dwBufferBytes < DSBSIZE_MAX);
+    
+    IDirectSoundBuffer* Temp;
+    Assert(SUCCEEDED(IDirectSound8_CreateSoundBuffer(DSound.Device, &BufferDesc, &Temp, NULL)));
+    Assert(SUCCEEDED(IDirectSoundBuffer_QueryInterface(Temp, &IID_IDirectSoundBuffer8, (void**)&Buffer)));
+    IDirectSoundBuffer_Release(Temp);
+    
+    void* Write;
+    DWORD Length;
+    Assert(SUCCEEDED(IDirectSoundBuffer8_Lock(Buffer, 0, 0, &Write, &Length, NULL, NULL, DSBLOCK_ENTIREBUFFER)));
+    memcpy(Write, Sound->Samples, Length);
+    IDirectSoundBuffer8_Unlock(Buffer, Write, Length, NULL, 0);
+    
+    Source->Handle = Buffer;
+}
+
+void DirectSoundFreeSource(audio_source* Source)
+{
+    IDirectSoundBuffer8_Release((IDirectSoundBuffer8*)Source->Handle);
+}
+
+void DirectSoundPlaySource(audio_source* Source)
+{
+    IDirectSoundBuffer8* Buffer = (IDirectSoundBuffer8*)Source->Handle;
+    IDirectSoundBuffer8_SetCurrentPosition(Buffer, Source->PauseCursor);
+    Assert(SUCCEEDED(IDirectSoundBuffer8_Play(Buffer, 0, 0, Source->Looping ? DSBPLAY_LOOPING : 0)));
+}
+
+void DirectSoundStopSource(audio_source* Source)
+{
+    IDirectSoundBuffer8* Buffer = (IDirectSoundBuffer8*)Source->Handle;
+    Assert(SUCCEEDED(IDirectSoundBuffer8_Stop(Buffer)));
+}
+
+void DirectSoundPauseSource(audio_source* Source)
+{
+    IDirectSoundBuffer8* Buffer = (IDirectSoundBuffer8*)Source->Handle;
+    Assert(SUCCEEDED(IDirectSoundBuffer8_GetCurrentPosition(Buffer, (LPDWORD)&Source->PauseCursor, NULL)));
+    DirectSoundStopSource(Source);
+}
+
+void DirectSoundSetSourceVolume(audio_source* Source, i32 Volume)
+{
+    IDirectSoundBuffer8* Buffer = (IDirectSoundBuffer8*)Source->Handle;
+    Assert(SUCCEEDED(IDirectSoundBuffer8_SetVolume(Buffer, (LONG)Volume)));
 }
