@@ -1,13 +1,13 @@
 #include "camellia.h"
 
 #include "camellia_renderer.h"
-#include "camellia_wav.h"
-#include "camellia_audio.h"
+#include "camellia_dungeon.h"
+
+#include <Windows.h>
 
 typedef struct game_state {
-    sound_data SnowbelleCity;
-    audio_source Music;
     gpu_buffer VertexBuffer;
+    generated_dungeon Dungeon;
 } game_state;
 
 static const f32 Vertices[] = {
@@ -20,9 +20,7 @@ global game_state GameState;
 
 void GameInit()
 {
-    WaveFileLoad("audio/snowbelle_city.wav", &GameState.SnowbelleCity);
-    Audio.InitSource(&GameState.SnowbelleCity, &GameState.Music);
-    Audio.PlaySource(&GameState.Music);
+    GenerateDungeon(NULL, &GameState.Dungeon);
     
     Renderer.InitBuffer(sizeof(Vertices), sizeof(f32) * 6, GpuBufferUsage_Vertex, &GameState.VertexBuffer);
     Renderer.UploadBuffer(sizeof(Vertices), Vertices, &GameState.VertexBuffer);
@@ -35,10 +33,6 @@ void GameUpdate()
 }
 
 void GameFree()
-{
-    Audio.StopSource(&GameState.Music);
-    Audio.FreeSource(&GameState.Music);
-    WaveFileFree(&GameState.SnowbelleCity);
-    
+{    
     Renderer.FreeBuffer(&GameState.VertexBuffer);
 }
