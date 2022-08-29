@@ -95,30 +95,19 @@ void Win32HeapFree(void* Memory)
 }
 
 internal
-u32 Win32GetFileSize(const char* FilePath)
+void Win32ReadFile(const char* Path, buffer* Buffer)
 {
-    HANDLE File = CreateFileA(FilePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    DWORD FileSize = GetFileSize(File, NULL);
-    CloseHandle(File);
-    return FileSize;
-}
-
-internal
-char* Win32ReadFile(const char* FilePath)
-{
-    HANDLE File = CreateFileA(FilePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (File == INVALID_HANDLE_VALUE) {
-        CloseHandle(File);
-        Assert(false);
+    FILE* In = fopen(Path, "rb");
+    if (In)
+    {
+        fseek(In, 0, SEEK_END);
+        Buffer->Size = ftell(In);
+        fseek(In, 0, SEEK_SET);
+        
+        Buffer->Data = Win32HeapAlloc(Buffer->Size);
+        fread(Buffer->Data, Buffer->Size, 1, In);
+        fclose(In);
     }
-    
-    DWORD FileSize = GetFileSize(File, NULL);
-    void* Buffer = Win32HeapAlloc(FileSize + 1);
-    DWORD BytesRead = 0;
-    ReadFile(File, Buffer, FileSize, &BytesRead, NULL);
-    ((u8*)Buffer)[FileSize] = 0;
-    CloseHandle(File);
-    return Buffer;
 }
 
 internal
@@ -239,7 +228,6 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 {
     PlatformState.HeapAlloc = Win32HeapAlloc;
     PlatformState.HeapFree = Win32HeapFree;
-    PlatformState.GetFileSize = Win32GetFileSize;
     PlatformState.ReadFile = Win32ReadFile;
     
     RendererLoad();

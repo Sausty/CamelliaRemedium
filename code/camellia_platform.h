@@ -91,13 +91,17 @@ typedef struct platform_gamepad {
     f32 RightMotor;
 } platform_gamepad;
 
+typedef struct buffer {
+    u32 Size;
+    u8* Data;
+} buffer;
+
 typedef struct platform_state {
     platform_gamepad Gamepads[MAX_GAMEPADS];
     
     void* (*HeapAlloc)(u64 Size);
     void (*HeapFree)(void* Memory);
-    u32 (*GetFileSize)(const char* FilePath);
-    char* (*ReadFile)(const char* FilePath);
+    void (*ReadFile)(const char* Path, buffer* Buffer);
 } platform_state;
 
 extern platform_state PlatformState;

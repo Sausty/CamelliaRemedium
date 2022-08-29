@@ -317,13 +317,13 @@ void D3D12InitForward()
     ID3DBlob* VertexShader = NULL;
     ID3DBlob* FragmentShader = NULL;
     
-    u32 ShaderSize = PlatformState.GetFileSize("shaders/forward.hlsl");
-    char* ShaderSource = PlatformState.ReadFile("shaders/forward.hlsl");
+    buffer ShaderBuffer;
+    PlatformState.ReadFile("shaders/forward.hlsl", &ShaderBuffer);
     
-    Result = D3DCompile(ShaderSource, ShaderSize, NULL, NULL, NULL, "VSMain", "vs_5_0", 0, 0, &VertexShader, &Error);
+    Result = D3DCompile(ShaderBuffer.Data, ShaderBuffer.Size, NULL, NULL, NULL, "VSMain", "vs_5_0", 0, 0, &VertexShader, &Error);
     if (Error) OutputDebugStringA((char*)Error->lpVtbl->GetBufferPointer(Error));
     Assert(SUCCEEDED(Result));
-    Result = D3DCompile(ShaderSource, ShaderSize, NULL, NULL, NULL, "PSMain", "ps_5_0", 0, 0, &FragmentShader, &Error);
+    Result = D3DCompile(ShaderBuffer.Data, ShaderBuffer.Size, NULL, NULL, NULL, "PSMain", "ps_5_0", 0, 0, &FragmentShader, &Error);
     if (Error) OutputDebugStringA((char*)Error->lpVtbl->GetBufferPointer(Error));
     Assert(SUCCEEDED(Result));
     
@@ -375,7 +375,7 @@ void D3D12InitForward()
     Result = ID3D12Device_CreateGraphicsPipelineState(D3D12.Device, &PSODesc, &IID_ID3D12PipelineState, (void**)&D3D12.ForwardPipeline.PipelineState);
     Assert(SUCCEEDED(Result));
     
-    PlatformState.HeapFree(ShaderSource);
+    PlatformState.HeapFree(ShaderBuffer.Data);
     SafeRelease(VertexShader);
     SafeRelease(FragmentShader);
     SafeRelease(Signature);

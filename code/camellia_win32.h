@@ -4,6 +4,7 @@
 #define CAMELLIA_WIN32_H
 
 #include <Windows.h>
+#include <stdio.h>
 
 #include "camellia_platform.h"
 #include "camellia.h"
