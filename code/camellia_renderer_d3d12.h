@@ -86,6 +86,7 @@ void D3D12Begin();
 void D3D12End();
 void D3D12BindBuffer(gpu_buffer* Buffer);
 void D3D12Draw(u32 VertexCount);
+void D3D12DrawIndexed(u32 IndexCount);
 void D3D12Wait();
 void D3D12Resize(u32 Width, u32 Height);
 

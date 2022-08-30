@@ -6,7 +6,7 @@
 #include "camellia_platform.h"
 
 #if defined(RENDERER_D3D12)
-#include "camellia_renderer_d3d12.h"
+	#include "camellia_renderer_d3d12.h"
 #endif
 
 typedef struct renderer_state {
@@ -20,6 +20,7 @@ typedef struct renderer_state {
     void (*End)();
     void (*BindBuffer)(gpu_buffer* Buffer);
     void (*Draw)(u32 VertexCount);
+	void (*DrawIndexed)(u32 IndexCount);
     void (*Wait)();
     void (*Resize)(u32 Width, u32 Height);
 } renderer_state;

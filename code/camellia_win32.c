@@ -5,6 +5,7 @@
 
 #include <string.h>
 #include <xinput.h>
+#include <time.h>
 
 #define XINPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
 typedef XINPUT_GET_STATE(xinput_get_state);
@@ -226,6 +227,8 @@ int CALLBACK WinMain(HINSTANCE hInstance,
                      LPSTR lpCmdLine, 
                      int nCmdShow)
 {
+    srand(time(NULL));
+    
     PlatformState.HeapAlloc = Win32HeapAlloc;
     PlatformState.HeapFree = Win32HeapFree;
     PlatformState.ReadFile = Win32ReadFile;
@@ -258,8 +261,10 @@ int CALLBACK WinMain(HINSTANCE hInstance,
                                        0);
     if (!WindowHandle)
     {
-        // TODO(milo): Error loading
+        // TODO(milo): Error handling
     }
+
+	SetWindowLong(WindowHandle, GWL_STYLE, GetWindowLong(WindowHandle, GWL_STYLE) & ~WS_MINIMIZEBOX); 
     
     Audio.Init(WindowHandle);
     Renderer.Init(WindowHandle);

@@ -336,7 +336,7 @@ void D3D12InitForward()
     D3D12_GRAPHICS_PIPELINE_STATE_DESC PSODesc;
     ZeroMemory(&PSODesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
     PSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-    PSODesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+    PSODesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
     PSODesc.RasterizerState.DepthClipEnable = false;
     PSODesc.RasterizerState.FrontCounterClockwise = false;
     PSODesc.RasterizerState.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
@@ -625,6 +625,12 @@ void D3D12Draw(u32 VertexCount)
 {
     ID3D12GraphicsCommandList* Command = D3D12.CommandLists[D3D12.FrameIndex];
     ID3D12GraphicsCommandList_DrawInstanced(Command, VertexCount, 1, 0, 0);
+}
+
+void D3D12DrawIndexed(u32 IndexCount)
+{
+	ID3D12GraphicsCommandList* Command = D3D12.CommandLists[D3D12.FrameIndex];
+	ID3D12GraphicsCommandList_DrawIndexedInstanced(Command, IndexCount, 1, 0, 0, 0);
 }
 
 void D3D12Resize(u32 Width, u32 Height)

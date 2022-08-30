@@ -14,6 +14,7 @@ void RendererLoad()
     Renderer.End = D3D12End;
     Renderer.BindBuffer = D3D12BindBuffer;
     Renderer.Draw = D3D12Draw;
+	Renderer.DrawIndexed = D3D12DrawIndexed;
     Renderer.Wait = D3D12Wait;
     Renderer.Resize = D3D12Resize;
 #endif
