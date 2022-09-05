@@ -277,10 +277,8 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     while (Platform.Running)
     {   
         Win32UpdateXInput();
-        
-        Renderer.Begin();        
+             
         GameUpdate();
-        Renderer.End();
         
         MSG Message;
         while (PeekMessageA(&Message, WindowHandle, 0, 0, PM_REMOVE))

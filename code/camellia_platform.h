@@ -24,6 +24,7 @@ typedef double f64;
 #define Terabytes(number) (Gigabytes(number) * 1024ull)
 #define Minimum(a, b) ((a) < (b) ? (a) : (b))
 #define Maximum(a, b) ((a) > (b) ? (a) : (b))
+#define Align256(val) ((val + 255) & ~255)
 #define Align16(val) ((val + 15) & ~15)
 #define Align4(val) ((val + 3) & ~3)
 

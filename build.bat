@@ -1,7 +1,7 @@
 @echo off
 
 REM Set all the variables
-set CommonCompilerFlags=-MTd -nologo -fp:fast -Gm- -GR- -EHa- -Od -Oi -WX -W4 -wd4201 -wd4100 -wd4189 -wd4505 -wd4244 -wd4456 -wd4047 -DGAME_DEBUG=1 -D_CRT_SECURE_NO_WARNINGS -FC -Z7
+set CommonCompilerFlags=-MTd -nologo -fp:fast -Gm- -GR- -EHa- -O2 -Oi -WX -W4 -wd4201 -wd4100 -wd4189 -wd4505 -wd4244 -wd4456 -wd4047 -DGAME_DEBUG=1 -D_CRT_SECURE_NO_WARNINGS -FC -Z7
 set CommonLinkerFlags= -incremental:no -opt:ref user32.lib dxguid.lib
 
 REM Create build directory if it doesn't exist.

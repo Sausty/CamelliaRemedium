@@ -2,7 +2,7 @@
 <N10X>
 	<Workspace>
 		<FileTypes>.c,.hlsl,</FileTypes>
-		<ExcludeFilters></ExcludeFilters>
+		<ExcludeFilters>build,.vscode,.git</ExcludeFilters>
 		<SyncFiles>true</SyncFiles>
 		<Recursive>true</Recursive>
 		<IsVirtual>false</IsVirtual>
@@ -40,6 +40,10 @@
 				<Defines></Defines>
 			</Platform>
 		</ConfigProperties>
-		<Children></Children>
+		<Children>
+			<File>
+				<Path>build/shaders/forward.hlsl</Path>
+			</File>
+		</Children>
 	</Workspace>
 </N10X>

@@ -53,9 +53,18 @@ void GameInit()
 
 void GameUpdate()
 {
+	renderer_begin Begin =
+	{
+		.View = M4Identity(),
+		.Projection = M4Identity()
+	};
+
+	Renderer.Begin(&Begin);
     Renderer.BindBuffer(&GameState.VertexBuffer);
 	Renderer.BindBuffer(&GameState.IndexBuffer);
+	Renderer.PushTransform(M4Translate(V3New(0.3f, 0.3f, 0.0f)));
     Renderer.DrawIndexed(9);
+	Renderer.End();
 }
 
 void GameFree()

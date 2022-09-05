@@ -8,10 +8,12 @@
 #include <dxgi1_6.h>
 
 #include "camellia_platform.h"
+#include "camellia_math.h"
 
 #define FRAMES_IN_FLIGHT 3
 
 typedef u32 d3d12_descriptor_handle;
+typedef struct renderer_begin renderer_begin;
 
 typedef enum gpu_buffer_usage {
     GpuBufferUsage_Vertex = 0,
@@ -42,6 +44,7 @@ typedef struct gpu_buffer {
     ID3D12Resource* Resource;
     u64 BufferSize;
     u64 BufferStride;
+	u32 HeapIndex;
     gpu_buffer_usage Usage;
     
     D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
@@ -63,6 +66,7 @@ typedef struct d3d12_state {
     d3d12_fence DeviceFence;
     
     d3d12_descriptor_heap RenderTargetViewHeap;
+	d3d12_descriptor_heap ShaderHeap;
     
     ID3D12CommandAllocator* CommandAllocators[FRAMES_IN_FLIGHT];
     ID3D12GraphicsCommandList* CommandLists[FRAMES_IN_FLIGHT];
@@ -74,6 +78,7 @@ typedef struct d3d12_state {
     u32 FrameIndex;
     
     d3d12_graphics_pipeline ForwardPipeline;
+	gpu_buffer CameraBuffer;
 } d3d12_state;
 
 void D3D12InitBuffer(u64 BufferSize, u64 BufferStride, gpu_buffer_usage Usage, gpu_buffer* Buffer);
@@ -82,11 +87,16 @@ void D3D12FreeBuffer(gpu_buffer* Buffer);
 
 void D3D12Init(void* Window);
 void D3D12Exit();
-void D3D12Begin();
+
+void D3D12Begin(renderer_begin* Begin);
 void D3D12End();
+
 void D3D12BindBuffer(gpu_buffer* Buffer);
+
+void D3D12PushTransform(m4 Transform);
 void D3D12Draw(u32 VertexCount);
 void D3D12DrawIndexed(u32 IndexCount);
+
 void D3D12Wait();
 void D3D12Resize(u32 Width, u32 Height);
 

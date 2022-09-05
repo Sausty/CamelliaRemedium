@@ -1,4 +1,5 @@
 #include "camellia_renderer_d3d12.h"
+#include "camellia_renderer.h"
 
 #include <stdio.h>
 
@@ -92,6 +93,8 @@ void DescriptorHeapInit(d3d12_descriptor_heap* Heap, D3D12_DESCRIPTOR_HEAP_TYPE 
     HeapDesc.NumDescriptors = DescriptorCount;
     HeapDesc.Type = Type;
     HeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	if (Type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV  || Type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
+		HeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ID3D12Device_CreateDescriptorHeap(D3D12.Device, &HeapDesc, &IID_ID3D12DescriptorHeap, (void**)&Heap->Heap);
     
     Heap->IncrementSize = ID3D12Device_GetDescriptorHandleIncrementSize(D3D12.Device, Type);
@@ -282,6 +285,9 @@ void D3D12InitBuffer(u64 BufferSize, u64 BufferStride, gpu_buffer_usage Usage, g
         {
             Buffer->ConstantBufferView.BufferLocation = ID3D12Resource_GetGPUVirtualAddress(Buffer->Resource);
             Buffer->ConstantBufferView.SizeInBytes = BufferSize;
+			Buffer->HeapIndex = AllocDescriptor(&D3D12.ShaderHeap);
+
+			ID3D12Device_CreateConstantBufferView(D3D12.Device, &Buffer->ConstantBufferView, DescriptorHeapCPU(&D3D12.ShaderHeap, Buffer->HeapIndex));
             break;
         }
     }
@@ -297,13 +303,38 @@ void D3D12UploadBuffer(u64 BufferSize, const void* Data, gpu_buffer* Buffer)
 
 void D3D12FreeBuffer(gpu_buffer* Buffer)
 {
+	if (Buffer->Usage == GpuBufferUsage_Constant)
+		FreeDescriptor(&D3D12.ShaderHeap, Buffer->HeapIndex);
     SafeRelease(Buffer->Resource);
 }
 
 void D3D12InitForward()
 {
+	D3D12_ROOT_PARAMETER Parameters[2];
+	ZeroMemory(Parameters, sizeof(Parameters));
+
+	D3D12_DESCRIPTOR_RANGE CameraRange;
+	CameraRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+	CameraRange.NumDescriptors = 1;
+	CameraRange.BaseShaderRegister = 0;
+	CameraRange.RegisterSpace = 1;
+	CameraRange.OffsetInDescriptorsFromTableStart = 0;
+
+	Parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	Parameters[0].Constants.Num32BitValues = 16;
+	Parameters[0].Constants.RegisterSpace = 0;
+	Parameters[0].Constants.ShaderRegister = 0;
+	Parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+	Parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	Parameters[1].DescriptorTable.NumDescriptorRanges = 1;
+	Parameters[1].DescriptorTable.pDescriptorRanges = &CameraRange;
+	Parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
     D3D12_ROOT_SIGNATURE_DESC RootDesc;
     ZeroMemory(&RootDesc, sizeof(D3D12_ROOT_SIGNATURE_DESC));
+	RootDesc.pParameters = Parameters;
+	RootDesc.NumParameters = 2;
     RootDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
     
     ID3DBlob* Signature = NULL;
@@ -320,10 +351,10 @@ void D3D12InitForward()
     buffer ShaderBuffer;
     PlatformState.ReadFile("shaders/forward.hlsl", &ShaderBuffer);
     
-    Result = D3DCompile(ShaderBuffer.Data, ShaderBuffer.Size, NULL, NULL, NULL, "VSMain", "vs_5_0", 0, 0, &VertexShader, &Error);
+    Result = D3DCompile(ShaderBuffer.Data, ShaderBuffer.Size, NULL, NULL, NULL, "VSMain", "vs_5_1", 0, 0, &VertexShader, &Error);
     if (Error) OutputDebugStringA((char*)Error->lpVtbl->GetBufferPointer(Error));
     Assert(SUCCEEDED(Result));
-    Result = D3DCompile(ShaderBuffer.Data, ShaderBuffer.Size, NULL, NULL, NULL, "PSMain", "ps_5_0", 0, 0, &FragmentShader, &Error);
+    Result = D3DCompile(ShaderBuffer.Data, ShaderBuffer.Size, NULL, NULL, NULL, "PSMain", "ps_5_1", 0, 0, &FragmentShader, &Error);
     if (Error) OutputDebugStringA((char*)Error->lpVtbl->GetBufferPointer(Error));
     Assert(SUCCEEDED(Result));
     
@@ -374,6 +405,8 @@ void D3D12InitForward()
     
     Result = ID3D12Device_CreateGraphicsPipelineState(D3D12.Device, &PSODesc, &IID_ID3D12PipelineState, (void**)&D3D12.ForwardPipeline.PipelineState);
     Assert(SUCCEEDED(Result));
+
+	D3D12InitBuffer(Align256(sizeof(m4) * 2), 0, GpuBufferUsage_Constant, &D3D12.CameraBuffer);
     
     PlatformState.HeapFree(ShaderBuffer.Data);
     SafeRelease(VertexShader);
@@ -447,6 +480,7 @@ void D3D12Init(HWND Window)
     
     // Create descriptor heaps
     DescriptorHeapInit(&D3D12.RenderTargetViewHeap, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 128);
+	DescriptorHeapInit(&D3D12.ShaderHeap, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1000000);
     
     // Create Swap Chain
     DXGI_SWAP_CHAIN_DESC1 SwapchainDesc = {0};
@@ -487,6 +521,7 @@ void D3D12Wait()
 
 void D3D12Exit()
 {
+	D3D12FreeBuffer(&D3D12.CameraBuffer);
     SafeRelease(D3D12.ForwardPipeline.PipelineState);
     SafeRelease(D3D12.ForwardPipeline.RootSignature);
     
@@ -500,6 +535,7 @@ void D3D12Exit()
     }
     
     SafeRelease(D3D12.Swapchain);
+	DescriptorHeapFree(&D3D12.ShaderHeap);
     DescriptorHeapFree(&D3D12.RenderTargetViewHeap);
     FenceFree(&D3D12.DeviceFence);
     SafeRelease(D3D12.Queue);
@@ -512,8 +548,17 @@ void D3D12Exit()
     SafeRelease(D3D12.Debug);
 }
 
-void D3D12Begin()
+void D3D12PushTransform(m4 Transform)
 {
+	ID3D12GraphicsCommandList* Command = D3D12.CommandLists[D3D12.FrameIndex];
+	ID3D12GraphicsCommandList_SetGraphicsRoot32BitConstants(Command, 0, 16, Transform.Elements, 0);
+}
+
+void D3D12Begin(renderer_begin* Begin)
+{
+	m4 Matrices[2] = { Begin->View, Begin->Projection };
+	D3D12UploadBuffer(Align256(sizeof(Matrices)), Matrices, &D3D12.CameraBuffer);
+
     u32 Width = 0;
     u32 Height = 0;
     D3D12GetWindowDimension(D3D12.RenderWindow, &Width, &Height);
@@ -565,6 +610,11 @@ void D3D12Begin()
     ID3D12GraphicsCommandList_IASetPrimitiveTopology(Command, D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     ID3D12GraphicsCommandList_SetGraphicsRootSignature(Command, D3D12.ForwardPipeline.RootSignature);
     ID3D12GraphicsCommandList_SetPipelineState(Command, D3D12.ForwardPipeline.PipelineState);
+
+	ID3D12DescriptorHeap* const HeapsToBind[1] = { D3D12.ShaderHeap.Heap };
+
+	ID3D12GraphicsCommandList_SetDescriptorHeaps(Command, 1, HeapsToBind);
+	ID3D12GraphicsCommandList_SetGraphicsRootDescriptorTable(Command, 1, DescriptorHeapGPU(&D3D12.ShaderHeap, D3D12.CameraBuffer.HeapIndex));
 }
 
 void D3D12End()

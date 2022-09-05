@@ -431,7 +431,7 @@ m4 M4Zero()
 
 m4 M4d(f32 Diagonal)
 {
-	m4 Result;
+	m4 Result = M4Zero();
 
 	Result.Elements[0][0] = Diagonal;
 	Result.Elements[1][1] = Diagonal;
