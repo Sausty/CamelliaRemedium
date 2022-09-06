@@ -349,7 +349,7 @@ void D3D12InitForward()
     ID3DBlob* FragmentShader = NULL;
     
     buffer ShaderBuffer;
-    PlatformState.ReadFile("shaders/forward.hlsl", &ShaderBuffer);
+    PlatformState.ReadFile("GAME_ASSETS/FS_00001.cgaf", &ShaderBuffer);
     
     Result = D3DCompile(ShaderBuffer.Data, ShaderBuffer.Size, NULL, NULL, NULL, "VSMain", "vs_5_1", 0, 0, &VertexShader, &Error);
     if (Error) OutputDebugStringA((char*)Error->lpVtbl->GetBufferPointer(Error));
@@ -361,7 +361,7 @@ void D3D12InitForward()
     D3D12_INPUT_ELEMENT_DESC InputElementDescs[] =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
     
     D3D12_GRAPHICS_PIPELINE_STATE_DESC PSODesc;
@@ -480,7 +480,7 @@ void D3D12Init(HWND Window)
     
     // Create descriptor heaps
     DescriptorHeapInit(&D3D12.RenderTargetViewHeap, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 128);
-	DescriptorHeapInit(&D3D12.ShaderHeap, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1000000);
+	DescriptorHeapInit(&D3D12.ShaderHeap, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1024);
     
     // Create Swap Chain
     DXGI_SWAP_CHAIN_DESC1 SwapchainDesc = {0};

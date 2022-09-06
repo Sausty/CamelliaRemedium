@@ -8,7 +8,7 @@
 
 typedef struct geometry_vertex {
 	v3 Position;
-	v3 Color;
+	v2 Texcoords;
 } geometry_vertex;
 
 typedef struct game_state {
@@ -19,11 +19,11 @@ typedef struct game_state {
 } game_state;
 
 global const geometry_vertex Vertices[] = {
-	{ {-0.0868241f,   0.49240386f, 0.0f}, {1.0f, 0.0f, 0.0f} }, // A
-	{ {-0.49513406f,  0.06958647f, 0.0f}, {0.0f, 0.0f, 1.0f} }, // B
-	{ {-0.21918549f, -0.44939706f, 0.0f}, {0.0f, 1.0f, 0.0f} }, // C
-	{ {0.35966998f,  -0.3473291f,  0.0f}, {0.0f, 1.0f, 1.0f} }, // D
-	{ {0.44147372f,   0.2347359f,  0.0f}, {1.0f, 0.0f, 1.0f} }, // E
+	{ {-0.0868241f,   0.49240386f, 0.0f}, {0.4131759f,    0.99240386f} }, // A
+	{ {-0.49513406f,  0.06958647f, 0.0f}, {0.0048659444f, 0.56958647f} }, // B
+	{ {-0.21918549f, -0.44939706f, 0.0f}, {0.28081453f,   0.05060294f} }, // C
+	{ {0.35966998f,  -0.3473291f,  0.0f}, {0.85967f,      0.1526709f} }, // D
+	{ {0.44147372f,   0.2347359f,  0.0f}, {0.9414737f,    0.7347359f} }, // E
 };
 
 global const u32 Indices[] = {
@@ -60,10 +60,13 @@ void GameUpdate()
 	};
 
 	Renderer.Begin(&Begin);
+    
+    // Hexagon
     Renderer.BindBuffer(&GameState.VertexBuffer);
 	Renderer.BindBuffer(&GameState.IndexBuffer);
 	Renderer.PushTransform(M4Translate(V3New(0.3f, 0.3f, 0.0f)));
     Renderer.DrawIndexed(9);
+    
 	Renderer.End();
 }
 
